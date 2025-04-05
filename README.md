@@ -58,6 +58,46 @@ A secure, transparent, and decentralized voting system built on blockchain techn
    - API: http://localhost:3000/api
    - Swagger Documentation: http://localhost:3000/api/docs
 
+### Running Without Docker (Simple Steps)
+
+1. **Set up PostgreSQL database**:
+   - Install PostgreSQL: https://www.postgresql.org/download/
+   - Create a database: `CREATE DATABASE voting_system;`
+
+2. **Set up local blockchain**:
+   - Install Ganache: `npm install -g ganache`
+   - Start Ganache: `npx ganache --deterministic --host=0.0.0.0`
+
+3. **Configure environment**:
+   - Create `.env` file in backend directory:
+   ```
+   DB_HOST=localhost
+   DB_PORT=5432
+   DB_USERNAME=postgres
+   DB_PASSWORD=your_password
+   DB_DATABASE=voting_system
+   JWT_SECRET=your_secret_key
+   PORT=3000
+   ```
+
+4. **Run backend**:
+   ```
+   cd backend
+   npm install
+   npm run start:dev
+   ```
+
+5. **Run frontend**:
+   ```
+   cd frontend
+   npm install
+   npm start
+   ```
+
+6. Access the application:
+   - Frontend: http://localhost:3000
+   - Backend API: http://localhost:3000/api
+
 ### Local Development
 
 1. Start the dependencies (PostgreSQL and Ganache):
