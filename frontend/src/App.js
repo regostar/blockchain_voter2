@@ -5,39 +5,14 @@ import Navbar from './components/Navbar';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import CreateBallot from './pages/CreateBallot';
+import ViewBallots from './pages/ViewBallots';
+import BallotDetail from './pages/BallotDetail';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
-// Protected route component
-const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
-  
-  if (loading) {
-    return <div className="text-center p-5">Loading...</div>;
-  }
-  
-  if (!isAuthenticated) {
-    return <Navigate to="/login" />;
-  }
-  
-  return children;
-};
-
-// Admin route component
-const AdminRoute = ({ children }) => {
+function AppContent() {
   const { isAuthenticated, isAdmin, loading } = useAuth();
   
-  if (loading) {
-    return <div className="text-center p-5">Loading...</div>;
-  }
-  
-  if (!isAuthenticated || !isAdmin) {
-    return <Navigate to="/" />;
-  }
-  
-  return children;
-};
-
-function AppContent() {
   return (
     <Router>
       <Navbar />
@@ -47,7 +22,46 @@ function AppContent() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           
-          {/* Add more routes as we develop more pages */}
+          {/* Admin Routes */}
+          <Route 
+            path="/create-ballot" 
+            element={
+              loading ? (
+                <div className="text-center p-5">Loading...</div>
+              ) : !isAuthenticated || !isAdmin ? (
+                <Navigate to="/" />
+              ) : (
+                <CreateBallot />
+              )
+            } 
+          />
+          
+          {/* Protected Routes */}
+          <Route 
+            path="/ballots" 
+            element={
+              loading ? (
+                <div className="text-center p-5">Loading...</div>
+              ) : !isAuthenticated ? (
+                <Navigate to="/login" />
+              ) : (
+                <ViewBallots />
+              )
+            } 
+          />
+          
+          <Route 
+            path="/ballots/:id" 
+            element={
+              loading ? (
+                <div className="text-center p-5">Loading...</div>
+              ) : !isAuthenticated ? (
+                <Navigate to="/login" />
+              ) : (
+                <BallotDetail />
+              )
+            } 
+          />
           
           {/* Catch-all route for 404 */}
           <Route path="*" element={<div className="text-center p-5">Page not found</div>} />
