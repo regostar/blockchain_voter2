@@ -6,6 +6,8 @@ import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import CreateBallot from './pages/CreateBallot';
+import ViewBallots from './pages/ViewBallots';
+import BallotDetail from './pages/BallotDetail';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 function AppContent() {
@@ -43,7 +45,20 @@ function AppContent() {
               ) : !isAuthenticated ? (
                 <Navigate to="/login" />
               ) : (
-                <div className="text-center p-5">Ballots Page (Coming Soon)</div>
+                <ViewBallots />
+              )
+            } 
+          />
+          
+          <Route 
+            path="/ballots/:id" 
+            element={
+              loading ? (
+                <div className="text-center p-5">Loading...</div>
+              ) : !isAuthenticated ? (
+                <Navigate to="/login" />
+              ) : (
+                <BallotDetail />
               )
             } 
           />

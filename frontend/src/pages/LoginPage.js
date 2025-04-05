@@ -24,8 +24,24 @@ const LoginPage = () => {
       setLoading(true);
       
       await login(username, password);
+      
+      // Debug: Check if tokens were stored correctly
+      console.log('Login successful!', { 
+        hasAccessToken: !!localStorage.getItem('accessToken'),
+        hasRefreshToken: !!localStorage.getItem('refreshToken'),
+        hasUser: !!localStorage.getItem('user')
+      });
+      
+      // Also manually add a token to localStorage under the "token" key
+      // since some components might still be using that old key name
+      const accessToken = localStorage.getItem('accessToken');
+      if (accessToken) {
+        localStorage.setItem('token', accessToken);
+      }
+      
       navigate('/');
     } catch (error) {
+      console.error('Login error:', error);
       setError(error.response?.data?.message || 'Failed to log in');
     } finally {
       setLoading(false);

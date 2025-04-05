@@ -13,9 +13,23 @@ const api = axios.create({
 // Add request interceptor for adding auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('accessToken');
+    // Try accessToken first (new format)
+    let token = localStorage.getItem('accessToken');
+    
+    // Fall back to token (old format) if accessToken doesn't exist
+    if (!token) {
+      token = localStorage.getItem('token');
+    }
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      
+      // Debug token usage
+      console.log('Using token in API request:', { 
+        tokenLength: token.length,
+        tokenPrefix: token.substring(0, 15) + '...',
+        endpoint: config.url
+      });
     }
     return config;
   },
@@ -34,6 +48,7 @@ api.interceptors.response.use(
       if (refreshToken) {
         try {
           localStorage.removeItem('accessToken');
+          localStorage.removeItem('token'); // Also remove old token format
           
           // Attempt to get a new token
           const response = await axios.post(`${API_URL}/auth/refresh`, {
@@ -43,6 +58,7 @@ api.interceptors.response.use(
           // If successful, save the new tokens
           const { accessToken, refreshToken: newRefreshToken } = response.data;
           localStorage.setItem('accessToken', accessToken);
+          localStorage.setItem('token', accessToken); // Also store in old format
           localStorage.setItem('refreshToken', newRefreshToken);
           
           // Retry the original request with the new token
@@ -52,6 +68,7 @@ api.interceptors.response.use(
         } catch (refreshError) {
           // If refresh fails, clear tokens and redirect to login
           localStorage.removeItem('accessToken');
+          localStorage.removeItem('token'); // Also remove old token format
           localStorage.removeItem('refreshToken');
           localStorage.removeItem('user');
           

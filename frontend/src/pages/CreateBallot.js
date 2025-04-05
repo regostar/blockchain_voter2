@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container, Form, Button, Card, Row, Col, Alert } from 'react-bootstrap';
-import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
+import { votingAPI } from '../utils/api';
 
 const CreateBallot = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, user } = useAuth();
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -15,6 +17,7 @@ const CreateBallot = () => {
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -58,25 +61,37 @@ const CreateBallot = () => {
     e.preventDefault();
     setError('');
     setSuccess('');
+    setIsSubmitting(true);
+
+    // Check if user is authenticated
+    if (!isAuthenticated || !user) {
+      setError('You must be logged in to create a ballot');
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Debug token issue
+    console.log('Authentication check:', { 
+      isAuthenticated, 
+      user: user?.username,
+      hasAccessToken: !!localStorage.getItem('accessToken'),
+      accessToken: localStorage.getItem('accessToken')?.substring(0, 20) + '...',
+    });
 
     // Basic validation
     if (!formData.title || !formData.description || !formData.startDate || !formData.endDate) {
       setError('Please fill in all required fields');
+      setIsSubmitting(false);
       return;
     }
 
     if (formData.candidates.some(candidate => !candidate.name)) {
       setError('All candidates must have a name');
+      setIsSubmitting(false);
       return;
     }
 
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setError('You must be logged in to create a ballot');
-        return;
-      }
-
       // Format dates to ISO string
       const payload = {
         ...formData,
@@ -84,11 +99,8 @@ const CreateBallot = () => {
         endDate: new Date(formData.endDate).toISOString()
       };
 
-      await axios.post(`${process.env.REACT_APP_API_URL}/voting/ballots`, payload, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      // Use the API service which already includes token handling
+      await votingAPI.createBallot(payload);
 
       setSuccess('Ballot created successfully!');
       
@@ -108,7 +120,19 @@ const CreateBallot = () => {
       }, 2000);
     } catch (err) {
       console.error('Error creating ballot:', err);
-      setError(err.response?.data?.message || 'Failed to create ballot. Please try again.');
+      if (err.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        setError(`Error ${err.response.status}: ${err.response.data?.message || 'Unknown server error'}`);
+      } else if (err.request) {
+        // The request was made but no response was received
+        setError('No response from server. Please check your connection or try again later.');
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        setError('Error preparing request: ' + err.message);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -236,8 +260,13 @@ const CreateBallot = () => {
             </div>
 
             <div className="d-grid mt-4">
-              <Button variant="primary" type="submit" size="lg">
-                Create Ballot
+              <Button 
+                variant="primary" 
+                type="submit" 
+                size="lg"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Creating...' : 'Create Ballot'}
               </Button>
             </div>
           </Form>
