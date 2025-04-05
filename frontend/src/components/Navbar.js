@@ -55,11 +55,18 @@ const Navbar = () => {
             )}
             
             {isAdmin && (
-              <li className="nav-item">
-                <Link className="nav-link" to="/admin">
-                  Admin Dashboard
-                </Link>
-              </li>
+              <>
+                <li className="nav-item">
+                  <Link className="nav-link" to="/create-ballot">
+                    Create Ballot
+                  </Link>
+                </li>
+                <li className="nav-item">
+                  <Link className="nav-link" to="/admin">
+                    Admin Dashboard
+                  </Link>
+                </li>
+              </>
             )}
           </ul>
           
