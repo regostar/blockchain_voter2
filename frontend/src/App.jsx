@@ -9,7 +9,7 @@ import ViewBallots from './pages/ViewBallots';
 import BallotDetail from './pages/BallotDetail';
 import CreateBallot from './pages/CreateBallot';
 import SimpleVotePage from './pages/SimpleVotePage.jsx';
-import MyVotes from './pages/MyVotes.jsx';
+import MyVotes from './components/MyVotes.jsx';
 import { ConfigProvider } from 'antd';
 import './App.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -31,8 +31,8 @@ const AppContent = ({ theme }) => {
             <Route path="/" element={<HomePage />} />
 
             {/* Simple Vote Page */}
-            <Route 
-              path="/simple-vote" 
+            <Route
+              path="/simple-vote"
               element={
                 loading ? (
                   <div className="text-center p-5">Loading...</div>
@@ -41,7 +41,7 @@ const AppContent = ({ theme }) => {
                 ) : (
                   <SimpleVotePage />
                 )
-              } 
+              }
             />
 
             {/* My Votes Page */}
