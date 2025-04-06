@@ -1,10 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Card, Select, message, Typography, Alert } from 'antd';
-import { BrowserProvider, Contract } from 'ethers';
+import { BrowserProvider, Contract, id, keccak256, toUtf8Bytes } from 'ethers';
 import VotingSystemArtifact from '../contracts/VotingSystem.json';
 
 const { Option } = Select;
 const { Title, Text } = Typography;
+
+const EXPECTED_CHAIN_ID = '0x539'; // 1337 in hex
+const GANACHE_NETWORK_PARAMS = {
+    chainId: EXPECTED_CHAIN_ID,
+    chainName: 'Ganache Local',
+    nativeCurrency: {
+        name: 'ETH',
+        symbol: 'ETH',
+        decimals: 18
+    },
+    rpcUrls: ['http://localhost:8545'],
+};
+
+const CONTRACT_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
 
 const SimpleVoteForm = () => {
     const [loading, setLoading] = useState(false);
@@ -13,6 +27,7 @@ const SimpleVoteForm = () => {
     const [isConnected, setIsConnected] = useState(false);
     const [contract, setContract] = useState(null);
     const [provider, setProvider] = useState(null);
+    const [networkError, setNetworkError] = useState(false);
 
     const candidates = [
         { id: '1', name: 'Candidate 1' },
@@ -20,26 +35,82 @@ const SimpleVoteForm = () => {
         { id: '3', name: 'Candidate 3' }
     ];
 
+    const switchToGanacheNetwork = async () => {
+        try {
+            await window.ethereum.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: EXPECTED_CHAIN_ID }],
+            });
+            setNetworkError(false);
+            return true;
+        } catch (switchError) {
+            // This error code indicates that the chain has not been added to MetaMask.
+            if (switchError.code === 4902) {
+                try {
+                    await window.ethereum.request({
+                        method: 'wallet_addEthereumChain',
+                        params: [GANACHE_NETWORK_PARAMS],
+                    });
+                    setNetworkError(false);
+                    return true;
+                } catch (addError) {
+                    console.error('Error adding Ganache network:', addError);
+                    message.error('Failed to add Ganache network to MetaMask');
+                    return false;
+                }
+            } else {
+                console.error('Error switching to Ganache network:', switchError);
+                message.error('Failed to switch to Ganache network');
+                return false;
+            }
+        }
+    };
+
+    const checkNetwork = async () => {
+        try {
+            const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+            if (chainId !== EXPECTED_CHAIN_ID) {
+                setNetworkError(true);
+                return false;
+            }
+            setNetworkError(false);
+            return true;
+        } catch (error) {
+            console.error('Error checking network:', error);
+            return false;
+        }
+    };
+
     useEffect(() => {
         checkIfWalletIsConnected();
+        
+        if (window.ethereum) {
+            window.ethereum.on('chainChanged', () => {
+                checkNetwork();
+            });
+        }
+
+        return () => {
+            if (window.ethereum) {
+                window.ethereum.removeListener('chainChanged', checkNetwork);
+            }
+        };
     }, []);
 
     const initializeContract = async () => {
         try {
+            if (!await checkNetwork()) {
+                const switched = await switchToGanacheNetwork();
+                if (!switched) return null;
+            }
+
             const provider = new BrowserProvider(window.ethereum);
             setProvider(provider);
             
-            const network = await provider.getNetwork();
             const signer = await provider.getSigner();
             
-            // Get the contract address from environment variable or use a default one
-            const contractAddress = process.env.REACT_APP_VOTING_CONTRACT_ADDRESS;
-            if (!contractAddress) {
-                throw new Error('Contract address not found');
-            }
-
             const votingContract = new Contract(
-                contractAddress,
+                CONTRACT_ADDRESS,
                 VotingSystemArtifact.abi,
                 signer
             );
@@ -92,6 +163,11 @@ const SimpleVoteForm = () => {
         }
     };
 
+    const generateVoterToken = (address) => {
+        // Create a hash of the address to use as the voter token
+        return keccak256(toUtf8Bytes(address.toLowerCase()));
+    };
+
     const handleVote = async () => {
         if (!selectedCandidate) {
             message.error('Please select a candidate');
@@ -108,6 +184,11 @@ const SimpleVoteForm = () => {
             return;
         }
 
+        if (networkError) {
+            message.error('Please switch to Ganache network');
+            return;
+        }
+
         try {
             setLoading(true);
             
@@ -115,19 +196,45 @@ const SimpleVoteForm = () => {
             const currentBlock = await provider.getBlockNumber();
             const ballotId = currentBlock.toString();
             
-            // Create a random voter token (in a real app, this would come from your backend)
-            const voterToken = await contract.getAddress() + Date.now().toString();
+            // Generate voter token from the account address
+            const voterToken = generateVoterToken(account);
+            console.log('Voter token:', voterToken);
             
-            // Register the voter token first
-            console.log('Registering voter token...');
-            const registerTx = await contract.registerVoterToken(voterToken);
-            await registerTx.wait();
-            console.log('Voter token registered');
+            try {
+                console.log('Checking if voter is registered...');
+                const isRegistered = await contract.registeredVoterTokens(voterToken);
+                console.log('Is registered:', isRegistered);
+                
+                if (!isRegistered) {
+                    console.log('Registering voter token...');
+                    const registerTx = await contract.registerVoterToken(voterToken, {
+                        gasLimit: 100000
+                    });
+                    console.log('Register transaction:', registerTx);
+                    const registerReceipt = await registerTx.wait();
+                    console.log('Register receipt:', registerReceipt);
+                    console.log('Voter token registered');
+                } else {
+                    console.log('Voter already registered');
+                }
+            } catch (registerError) {
+                console.error('Error in registration:', registerError);
+                // Continue with voting even if registration check fails
+            }
             
             // Cast the vote
-            console.log('Casting vote...');
-            const voteTx = await contract.castVote(ballotId, selectedCandidate, voterToken);
+            console.log('Casting vote with params:', {
+                ballotId,
+                selectedCandidate,
+                voterToken
+            });
+            
+            const voteTx = await contract.castVote(ballotId, selectedCandidate, voterToken, {
+                gasLimit: 200000
+            });
+            console.log('Vote transaction:', voteTx);
             const receipt = await voteTx.wait();
+            console.log('Vote receipt:', receipt);
             
             message.success('Vote successfully recorded on the blockchain!');
             console.log('Transaction hash:', voteTx.hash);
@@ -176,11 +283,33 @@ const SimpleVoteForm = () => {
                 <>
                     <Alert
                         message="Wallet Connected"
-                        description={`Connected Address: ${account}`}
+                        description={
+                            <div>
+                                <p>Connected Address: {account}</p>
+                                <p>Contract Address: {CONTRACT_ADDRESS}</p>
+                            </div>
+                        }
                         type="success"
                         showIcon
                         style={{ marginBottom: 20 }}
                     />
+                    
+                    {networkError && (
+                        <Alert
+                            message="Wrong Network"
+                            description={
+                                <div>
+                                    <p>Please switch to the Ganache network (Chain ID: 1337)</p>
+                                    <Button type="primary" onClick={switchToGanacheNetwork}>
+                                        Switch to Ganache
+                                    </Button>
+                                </div>
+                            }
+                            type="warning"
+                            showIcon
+                            style={{ marginBottom: 20 }}
+                        />
+                    )}
                     
                     <div style={{ marginBottom: 20 }}>
                         <Text>Select a Candidate:</Text>
@@ -202,6 +331,7 @@ const SimpleVoteForm = () => {
                         type="primary"
                         onClick={handleVote}
                         loading={loading}
+                        disabled={networkError}
                         style={{ width: '100%' }}
                     >
                         Cast Vote
