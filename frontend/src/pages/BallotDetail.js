@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Container, Row, Col, Card, Badge, Button, Spinner, Alert, Form } from 'react-bootstrap';
 import { votingAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
+import VoteTransaction from '../components/VoteTransaction';
+import { Typography, Card, Row, Col, Button, Spin, Alert, Tag, Radio, Divider, Progress, Statistic, Space, Badge } from 'antd';
+import { CalendarOutlined, ArrowLeftOutlined, CheckCircleOutlined, InfoCircleOutlined, LockOutlined, LinkOutlined, TeamOutlined } from '@ant-design/icons';
+
+const { Title, Text, Paragraph } = Typography;
 
 const BallotDetail = () => {
   const { id } = useParams();
@@ -12,10 +16,10 @@ const BallotDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedCandidate, setSelectedCandidate] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [voteSuccess, setVoteSuccess] = useState(false);
   const [results, setResults] = useState(null);
   const [showResults, setShowResults] = useState(false);
+  const [transactionHash, setTransactionHash] = useState(null);
 
   useEffect(() => {
     const fetchBallot = async () => {
@@ -50,47 +54,31 @@ const BallotDetail = () => {
     }
   };
 
-  const handleVote = async (e) => {
-    e.preventDefault();
-    
-    if (!selectedCandidate) {
-      setError('Please select a candidate to vote for');
-      return;
-    }
+  const handleCandidateSelect = (candidateId) => {
+    setSelectedCandidate(candidateId);
+    setError('');
+  };
 
-    try {
-      setIsSubmitting(true);
-      setError('');
-      
-      await votingAPI.castVote({
-        ballotId: id,
-        candidateId: selectedCandidate
-      });
-      
-      setVoteSuccess(true);
-      
-      // After successful vote, wait 2 seconds then show results
-      setTimeout(() => {
-        fetchResults();
-      }, 2000);
-      
-    } catch (err) {
-      console.error('Error casting vote:', err);
-      if (err.response?.status === 403) {
-        setError('You have already voted in this ballot or are not eligible to vote');
-      } else {
-        setError('Failed to cast your vote. Please try again later.');
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleVoteSuccess = (data) => {
+    console.log('Vote successful:', data);
+    setVoteSuccess(true);
+    setTransactionHash(data.transactionHash);
+    // After a successful vote, show the results
+    setTimeout(() => {
+      fetchResults();
+    }, 1500);
+  };
+
+  const handleVoteError = (err) => {
+    console.error('Vote error:', err);
+    setError(err.message || 'Failed to cast vote. Please try again.');
   };
 
   // Format date to readable string
   const formatDate = (dateString) => {
-    const options = { 
-      year: 'numeric', 
-      month: 'long', 
+    const options = {
+      year: 'numeric',
+      month: 'long',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
@@ -98,7 +86,7 @@ const BallotDetail = () => {
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
-  // Determine if a ballot is active
+  // Determine if a ballot is active based on dates and isActive flag
   const isBallotActive = (ballot) => {
     const now = new Date();
     const startDate = new Date(ballot.startDate);
@@ -113,219 +101,482 @@ const BallotDetail = () => {
     const endDate = new Date(ballot.endDate);
 
     if (!ballot.isActive) {
-      return <Badge bg="secondary">Inactive</Badge>;
+      return <Tag color="default">Inactive</Tag>;
     } else if (now < startDate) {
-      return <Badge bg="info">Upcoming</Badge>;
+      return <Tag color="blue">Upcoming</Tag>;
     } else if (now > endDate) {
-      return <Badge bg="danger">Closed</Badge>;
+      return <Tag color="red">Closed</Tag>;
     } else {
-      return <Badge bg="success">Active</Badge>;
+      return <Tag color="green">Active</Tag>;
+    }
+  };
+
+  // Get status color for the ballot
+  const getStatusColor = (ballot) => {
+    const now = new Date();
+    const startDate = new Date(ballot.startDate);
+    const endDate = new Date(ballot.endDate);
+
+    if (!ballot.isActive) {
+      return '#d9d9d9';
+    } else if (now < startDate) {
+      return '#1890ff';
+    } else if (now > endDate) {
+      return '#ff4d4f';
+    } else {
+      return '#52c41a';
     }
   };
 
   if (loading) {
     return (
-      <Container className="py-5 text-center">
-        <Spinner animation="border" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </Spinner>
-        <p className="mt-2">Loading ballot details...</p>
-      </Container>
+      <div className="container py-5 text-center">
+        <Spin size="large" />
+        <Paragraph className="mt-3">Loading ballot details...</Paragraph>
+      </div>
     );
   }
 
   if (error && !ballot) {
     return (
-      <Container className="py-5">
-        <Alert variant="danger">
-          {error}
-          <div className="mt-3">
-            <Button variant="outline-primary" onClick={() => navigate('/ballots')}>
-              Back to Ballots
-            </Button>
-          </div>
-        </Alert>
-      </Container>
+      <div className="container py-5">
+        <Alert
+          message="Error Loading Ballot"
+          description={
+            <>
+              {error}
+              <div style={{ marginTop: '16px' }}>
+                <Button type="primary" onClick={() => navigate('/ballots')}>
+                  <ArrowLeftOutlined /> Back to Ballots
+                </Button>
+              </div>
+            </>
+          }
+          type="error"
+          showIcon
+        />
+      </div>
     );
   }
 
   if (!ballot) {
     return (
-      <Container className="py-5">
-        <Alert variant="warning">
-          Ballot not found
-          <div className="mt-3">
-            <Button variant="outline-primary" onClick={() => navigate('/ballots')}>
-              Back to Ballots
-            </Button>
-          </div>
-        </Alert>
-      </Container>
+      <div className="container py-5">
+        <Alert
+          message="Ballot Not Found"
+          description={
+            <>
+              The requested ballot could not be found.
+              <div style={{ marginTop: '16px' }}>
+                <Button type="primary" onClick={() => navigate('/ballots')}>
+                  <ArrowLeftOutlined /> Back to Ballots
+                </Button>
+              </div>
+            </>
+          }
+          type="warning"
+          showIcon
+        />
+      </div>
     );
   }
 
   const canVote = user && ballot && isBallotActive(ballot) && !voteSuccess && !showResults;
+  const statusColor = getStatusColor(ballot);
 
   return (
-    <Container className="py-5">
-      <div className="mb-4">
-        <Button variant="outline-secondary" onClick={() => navigate('/ballots')} className="mb-3">
-          &larr; Back to Ballots
+    <div className="container py-5">
+      <div style={{ marginBottom: '24px' }}>
+        <Button
+          type="default"
+          icon={<ArrowLeftOutlined />}
+          onClick={() => navigate('/ballots')}
+          style={{ marginBottom: '16px' }}
+        >
+          Back to Ballots
         </Button>
-        <div className="d-flex align-items-center">
-          <h1 className="mb-0 me-3">{ballot.title}</h1>
-          {getBallotStatusBadge(ballot)}
-        </div>
-        <p className="text-muted mt-2">Created by: Admin</p>
+
+        <Card
+          style={{
+            background: `linear-gradient(135deg, rgba(118, 185, 0, 0.05) 0%, rgba(118, 185, 0, 0.15) 100%)`,
+            borderRadius: '12px',
+            borderTop: `4px solid ${statusColor}`,
+            marginBottom: '24px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+            <div>
+              <Title level={2} style={{ marginBottom: '8px' }}>{ballot.title}</Title>
+              <Space>
+                {getBallotStatusBadge(ballot)}
+                <Badge
+                  count={`${ballot.candidates.length} Candidates`}
+                  style={{ backgroundColor: '#1890ff' }}
+                />
+              </Space>
+            </div>
+            <div>
+              <Card
+                size="small"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.8)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  padding: '10px'
+                }}
+              >
+                <Text type="secondary">Created by</Text>
+                <Text strong>Admin</Text>
+              </Card>
+            </div>
+          </div>
+        </Card>
       </div>
 
-      {error && <Alert variant="danger">{error}</Alert>}
-      {voteSuccess && <Alert variant="success">Your vote has been successfully recorded!</Alert>}
+      {error && <Alert message="Error" description={error} type="error" showIcon style={{ marginBottom: '24px' }} />}
 
-      <Row>
-        <Col md={8}>
-          <Card className="mb-4">
-            <Card.Body>
-              <Card.Title>Ballot Information</Card.Title>
-              <p>{ballot.description}</p>
-              <div className="d-flex justify-content-between mt-4">
+      {voteSuccess && (
+        <Alert
+          message="Vote Successful"
+          description={
+            <>
+              <p>Your vote has been successfully recorded on the blockchain!</p>
+              {transactionHash && (
                 <div>
-                  <strong>Start Date:</strong><br />
-                  {formatDate(ballot.startDate)}
+                  <Text strong>Transaction Hash: </Text>
+                  <Text code copyable>{transactionHash}</Text>
                 </div>
-                <div>
-                  <strong>End Date:</strong><br />
-                  {formatDate(ballot.endDate)}
-                </div>
-                <div>
-                  <strong>Status:</strong><br />
-                  {getBallotStatusBadge(ballot)}
-                </div>
-              </div>
-            </Card.Body>
+              )}
+            </>
+          }
+          type="success"
+          showIcon
+          style={{ marginBottom: '24px' }}
+        />
+      )}
+
+      <Row gutter={[24, 24]}>
+        <Col xs={24} lg={16}>
+          <Card
+            className="ballot-card"
+            style={{
+              marginBottom: '24px',
+              borderRadius: '8px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+            }}
+          >
+            <Title level={4}>
+              <InfoCircleOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
+              Ballot Information
+            </Title>
+            <Paragraph style={{ fontSize: '16px', marginBottom: '24px' }}>
+              {ballot.description}
+            </Paragraph>
+
+            <Row gutter={16} style={{ textAlign: 'center' }}>
+              <Col span={8}>
+                <Statistic
+                  title="Start Date"
+                  value={formatDate(ballot.startDate)}
+                  valueStyle={{ fontSize: '14px' }}
+                  prefix={<CalendarOutlined style={{ color: '#76B900' }} />}
+                />
+              </Col>
+              <Col span={8}>
+                <Statistic
+                  title="End Date"
+                  value={formatDate(ballot.endDate)}
+                  valueStyle={{ fontSize: '14px' }}
+                  prefix={<CalendarOutlined style={{ color: '#E74C3C' }} />}
+                />
+              </Col>
+              <Col span={8}>
+                <Statistic
+                  title="Status"
+                  value={getBallotStatusBadge(ballot)}
+                  valueStyle={{ fontSize: '14px', display: 'flex', justifyContent: 'center' }}
+                />
+              </Col>
+            </Row>
           </Card>
 
           {canVote ? (
-            <Card>
-              <Card.Body>
-                <Card.Title>Cast Your Vote</Card.Title>
-                <Form onSubmit={handleVote}>
+            <Card
+              className="ballot-card vote-card"
+              style={{
+                borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                borderTop: '4px solid #52c41a'
+              }}
+            >
+              <Title level={4}>
+                <CheckCircleOutlined style={{ marginRight: '8px', color: '#52c41a' }} />
+                Cast Your Vote
+              </Title>
+              <Divider />
+
+              <Radio.Group
+                onChange={e => handleCandidateSelect(e.target.value)}
+                value={selectedCandidate}
+                style={{ width: '100%', marginBottom: '24px' }}
+              >
+                <Space direction="vertical" style={{ width: '100%' }}>
                   {ballot.candidates.map((candidate) => (
-                    <Form.Check
+                    <Card
                       key={candidate.id}
-                      type="radio"
-                      id={`candidate-${candidate.id}`}
-                      label={
-                        <div>
-                          <strong>{candidate.name}</strong>
-                          {candidate.description && (
-                            <p className="text-muted mb-0 small">{candidate.description}</p>
-                          )}
-                        </div>
-                      }
-                      name="candidateGroup"
-                      value={candidate.id}
-                      className="mb-3 p-2 border rounded"
-                      onChange={() => setSelectedCandidate(candidate.id)}
-                      checked={selectedCandidate === candidate.id}
-                    />
-                  ))}
-                  <div className="d-grid mt-4">
-                    <Button 
-                      type="submit" 
-                      variant="success" 
-                      size="lg"
-                      disabled={isSubmitting || !selectedCandidate}
+                      hoverable
+                      style={{
+                        marginBottom: '12px',
+                        borderColor: selectedCandidate === candidate.id ? '#52c41a' : '#d9d9d9',
+                        borderRadius: '8px',
+                        transition: 'all 0.3s ease'
+                      }}
                     >
-                      {isSubmitting ? 'Submitting Vote...' : 'Submit Vote'}
-                    </Button>
-                  </div>
-                </Form>
-              </Card.Body>
+                      <Radio value={candidate.id} style={{ width: '100%' }}>
+                        <div style={{ padding: '8px 0' }}>
+                          <Title level={5} style={{ marginBottom: '4px' }}>{candidate.name}</Title>
+                          <Text type="secondary">{candidate.description}</Text>
+                        </div>
+                      </Radio>
+                    </Card>
+                  ))}
+                </Space>
+              </Radio.Group>
+
+              {selectedCandidate ? (
+                <VoteTransaction
+                  ballot={ballot}
+                  candidateId={selectedCandidate}
+                  onSuccess={handleVoteSuccess}
+                  onError={handleVoteError}
+                />
+              ) : (
+                <Alert
+                  message="Please select a candidate to vote for"
+                  type="info"
+                  showIcon
+                />
+              )}
             </Card>
           ) : showResults ? (
-            <Card>
-              <Card.Body>
-                <Card.Title>Voting Results</Card.Title>
-                {results ? (
-                  <div>
-                    <div className="mb-3">
-                      <strong>Total Votes: {results.totalVotes}</strong>
-                    </div>
-                    {results.candidateResults.map((result) => (
-                      <div key={result.candidateId} className="mb-4">
-                        <div className="d-flex justify-content-between">
-                          <strong>{result.candidateName}</strong>
-                          <span>{result.votes} votes ({Math.round(result.percentage)}%)</span>
-                        </div>
-                        <div className="progress">
-                          <div 
-                            className="progress-bar bg-success" 
-                            role="progressbar" 
-                            style={{ width: `${result.percentage}%` }}
-                            aria-valuenow={result.percentage} 
-                            aria-valuemin="0" 
-                            aria-valuemax="100"
-                          ></div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p>No results available yet.</p>
-                )}
-              </Card.Body>
+            <Card
+              className="ballot-card results-card"
+              style={{
+                borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                borderTop: '4px solid #1890ff'
+              }}
+            >
+              <Title level={4}>
+                <CheckCircleOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
+                Voting Results
+              </Title>
+              <Divider />
+
+              {results ? (
+                <div>
+                  <Paragraph>
+                    <Text strong>Total Votes: </Text>
+                    <Text>{results.totalVotes}</Text>
+                  </Paragraph>
+
+                  <Space direction="vertical" style={{ width: '100%' }}>
+                    {results.candidateResults.map((result) => {
+                      const candidate = ballot.candidates.find(c => c.id === result.candidateId);
+                      const percentage = results.totalVotes > 0
+                        ? Math.round((result.votes / results.totalVotes) * 100)
+                        : 0;
+
+                      return (
+                        <Card
+                          key={result.candidateId}
+                          style={{
+                            marginBottom: '16px',
+                            borderRadius: '8px'
+                          }}
+                        >
+                          <div style={{ marginBottom: '12px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                              <Title level={5} style={{ margin: 0 }}>{candidate?.name}</Title>
+                              <div>
+                                <Text strong>{result.votes} votes</Text>
+                                <Text type="secondary"> ({percentage}%)</Text>
+                              </div>
+                            </div>
+                            <Text type="secondary">{candidate?.description}</Text>
+                          </div>
+
+                          <Progress
+                            percent={percentage}
+                            status="active"
+                            strokeColor={{
+                              from: '#76B900',
+                              to: '#52c41a',
+                            }}
+                            style={{ marginBottom: 0 }}
+                          />
+                        </Card>
+                      );
+                    })}
+                  </Space>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '20px' }}>
+                  <Spin />
+                  <Paragraph style={{ marginTop: '16px' }}>Loading results...</Paragraph>
+                </div>
+              )}
             </Card>
           ) : (
-            <Card>
-              <Card.Body className="text-center p-5">
+            <Card
+              className="ballot-card"
+              style={{
+                borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                textAlign: 'center',
+                padding: '30px',
+                borderTop: `4px solid ${statusColor}`
+              }}
+            >
+              <div style={{ padding: '20px 0' }}>
                 {ballot.isActive ? (
-                  <div>
-                    <h4>This ballot is {new Date() < new Date(ballot.startDate) ? 'not yet open' : 'now closed'} for voting</h4>
-                    <Button 
-                      variant="primary" 
-                      className="mt-3"
+                  <>
+                    <Title level={4}>
+                      This ballot is {new Date() < new Date(ballot.startDate) ? 'not yet open' : 'now closed'} for voting
+                    </Title>
+                    <Button
+                      type="primary"
+                      size="large"
+                      icon={<CheckCircleOutlined />}
                       onClick={fetchResults}
+                      style={{ marginTop: '20px' }}
                     >
                       View Results
                     </Button>
-                  </div>
+                  </>
                 ) : (
-                  <h4>This ballot is currently inactive</h4>
+                  <Title level={4}>
+                    <LockOutlined style={{ marginRight: '8px' }} />
+                    This ballot is currently inactive
+                  </Title>
                 )}
-              </Card.Body>
+              </div>
             </Card>
           )}
         </Col>
 
-        <Col md={4}>
-          <Card>
-            <Card.Body>
-              <Card.Title>Candidates</Card.Title>
-              <div className="list-group mt-3">
-                {ballot.candidates.map((candidate) => (
-                  <div key={candidate.id} className="list-group-item">
-                    <h5>{candidate.name}</h5>
-                    <p className="mb-0 text-muted">{candidate.description}</p>
-                  </div>
-                ))}
-              </div>
-              
-              {!canVote && !showResults && (
-                <div className="d-grid mt-3">
-                  <Button 
-                    variant="outline-primary" 
-                    onClick={fetchResults}
+        <Col xs={24} lg={8}>
+          <Card
+            className="ballot-sidebar-card candidates-card"
+            style={{
+              borderRadius: '8px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+              marginBottom: '24px',
+              borderTop: '4px solid #1890ff'
+            }}
+          >
+            <Title level={4}>
+              <TeamOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
+              Candidates
+            </Title>
+            <Divider />
+
+            <Space direction="vertical" style={{ width: '100%' }}>
+              {ballot.candidates.map((candidate) => (
+                <Card
+                  key={candidate.id}
+                  size="small"
+                  style={{
+                    marginBottom: '12px',
+                    borderRadius: '8px'
+                  }}
+                >
+                  <Title level={5} style={{ marginBottom: '4px', fontSize: '16px' }}>{candidate.name}</Title>
+                  <Text type="secondary">{candidate.description}</Text>
+                </Card>
+              ))}
+            </Space>
+
+            {!canVote && !showResults && (
+              <Button
+                type="primary"
+                block
+                onClick={fetchResults}
+                style={{ marginTop: '16px' }}
+              >
+                View Results
+              </Button>
+            )}
+          </Card>
+
+          {/* Blockchain Information Card */}
+          <Card
+            className="ballot-sidebar-card blockchain-card"
+            style={{
+              borderRadius: '8px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+              borderTop: '4px solid #76B900'
+            }}
+          >
+            <Title level={4}>
+              <LinkOutlined style={{ marginRight: '8px', color: '#76B900' }} />
+              Blockchain Info
+            </Title>
+            <Divider />
+
+            <Paragraph>
+              Votes in this ballot are securely recorded on the blockchain, ensuring transparency and integrity.
+            </Paragraph>
+
+            {user && !user.walletAddress && (
+              <Alert
+                message="Wallet Required"
+                description="You need to connect your blockchain wallet to vote."
+                type="warning"
+                showIcon
+                style={{ marginBottom: '16px' }}
+                action={
+                  <Button
+                    size="small"
+                    type="primary"
+                    onClick={() => navigate('/profile?tab=wallet')}
                   >
-                    View Results
+                    Connect Wallet
                   </Button>
-                </div>
-              )}
-            </Card.Body>
+                }
+              />
+            )}
+
+            {user && user.walletAddress && (
+              <div style={{ marginBottom: '16px' }}>
+                <Text strong>Your Wallet:</Text><br />
+                <Text code copyable style={{ fontSize: '12px' }}>{user.walletAddress}</Text>
+              </div>
+            )}
+
+            {transactionHash && (
+              <div>
+                <Text strong>Transaction:</Text><br />
+                <Text code copyable style={{ fontSize: '12px' }}>{transactionHash}</Text>
+              </div>
+            )}
           </Card>
         </Col>
       </Row>
-    </Container>
+
+      <style jsx>{`
+        .ballot-card {
+          transition: all 0.3s ease;
+        }
+        .ballot-card:hover {
+          box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+        }
+        .vote-card:hover {
+          transform: translateY(-5px);
+        }
+      `}</style>
+    </div>
   );
 };
 

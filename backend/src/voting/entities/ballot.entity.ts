@@ -4,9 +4,12 @@ import {
   PrimaryGeneratedColumn, 
   CreateDateColumn, 
   UpdateDateColumn,
-  OneToMany
+  OneToMany,
+  ManyToOne
 } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
 import { Candidate } from './candidate.entity';
+import { Vote } from './vote.entity';
 
 @Entity('ballots')
 export class Ballot {
@@ -28,11 +31,17 @@ export class Ballot {
   @Column({ type: 'timestamp', nullable: true })
   endDate: Date;
 
+  @ManyToOne(() => User, user => user.createdBallots)
+  creator: User;
+
   @OneToMany(() => Candidate, (candidate) => candidate.ballot, {
     cascade: true,
     eager: true,
   })
   candidates: Candidate[];
+
+  @OneToMany(() => Vote, vote => vote.ballot)
+  votes: Vote[];
 
   @CreateDateColumn()
   createdAt: Date;

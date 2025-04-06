@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Badge, Button, Spinner, Alert } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { votingAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
+import { Typography, Card, Row, Col, Button, Spin, Alert, Tag, Empty, Divider } from 'antd';
+import { CalendarOutlined, TeamOutlined, CheckCircleOutlined, RightOutlined } from '@ant-design/icons';
+
+const { Title, Text, Paragraph } = Typography;
 
 const ViewBallots = () => {
   const [ballots, setBallots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const { isAdmin } = useAuth();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
     const fetchBallots = async () => {
@@ -30,9 +34,9 @@ const ViewBallots = () => {
 
   // Format date to readable string
   const formatDate = (dateString) => {
-    const options = { 
-      year: 'numeric', 
-      month: 'long', 
+    const options = {
+      year: 'numeric',
+      month: 'long',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
@@ -55,78 +59,192 @@ const ViewBallots = () => {
     const endDate = new Date(ballot.endDate);
 
     if (!ballot.isActive) {
-      return <Badge bg="secondary">Inactive</Badge>;
+      return <Tag color="default">Inactive</Tag>;
     } else if (now < startDate) {
-      return <Badge bg="info">Upcoming</Badge>;
+      return <Tag color="blue">Upcoming</Tag>;
     } else if (now > endDate) {
-      return <Badge bg="danger">Closed</Badge>;
+      return <Tag color="red">Closed</Tag>;
     } else {
-      return <Badge bg="success">Active</Badge>;
+      return <Tag color="green">Active</Tag>;
+    }
+  };
+
+  // Get border color based on ballot status
+  const getBorderColor = (ballot) => {
+    const now = new Date();
+    const startDate = new Date(ballot.startDate);
+    const endDate = new Date(ballot.endDate);
+
+    if (!ballot.isActive) {
+      return '#d9d9d9';
+    } else if (now < startDate) {
+      return '#1890ff';
+    } else if (now > endDate) {
+      return '#ff4d4f';
+    } else {
+      return '#52c41a';
     }
   };
 
   if (loading) {
     return (
-      <Container className="py-5 text-center">
-        <Spinner animation="border" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </Spinner>
-        <p className="mt-2">Loading ballots...</p>
-      </Container>
+      <div className="container py-5 text-center">
+        <Spin size="large" />
+        <Paragraph className="mt-3">Loading ballots...</Paragraph>
+      </div>
     );
   }
 
   return (
-    <Container className="py-5">
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1>Ballots</h1>
-        {isAdmin && (
-          <Link to="/create-ballot">
-            <Button variant="primary">Create New Ballot</Button>
-          </Link>
-        )}
+    <div className="container py-5">
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(118, 185, 0, 0.05) 0%, rgba(118, 185, 0, 0.1) 100%)',
+        borderRadius: '12px',
+        padding: '30px 20px',
+        marginBottom: '30px'
+      }}>
+        <div className="d-flex justify-content-between align-items-center mb-4">
+          <Title level={2} style={{ margin: 0 }}>Active Ballots</Title>
+          {isAdmin && (
+            <Link to="/create-ballot">
+              <Button type="primary" size="large">
+                Create New Ballot
+              </Button>
+            </Link>
+          )}
+        </div>
+
+        <Paragraph>
+          View and participate in secure blockchain-based voting ballots. Your vote is securely recorded on the blockchain.
+        </Paragraph>
       </div>
 
-      {error && <Alert variant="danger">{error}</Alert>}
+      {error && <Alert message="Error" description={error} type="error" showIcon style={{ marginBottom: '20px' }} />}
 
       {ballots.length === 0 ? (
-        <Alert variant="info">
-          No ballots available yet. {isAdmin && 'Create one by clicking the button above.'}
-        </Alert>
+        <Empty
+          description={
+            <>
+              <Text>No ballots available yet.</Text>
+              {isAdmin && <Text> Create one by clicking the button above.</Text>}
+            </>
+          }
+        />
       ) : (
-        <Row xs={1} md={2} lg={3} className="g-4">
-          {ballots.map((ballot) => (
-            <Col key={ballot.id}>
-              <Card className="h-100 shadow-sm">
-                <Card.Header className="d-flex justify-content-between align-items-center">
-                  {getBallotStatusBadge(ballot)}
-                  <small>{ballot.candidates.length} candidate(s)</small>
-                </Card.Header>
-                <Card.Body>
-                  <Card.Title>{ballot.title}</Card.Title>
-                  <Card.Text className="text-muted small">
-                    {ballot.description.length > 100
-                      ? `${ballot.description.substring(0, 100)}...`
-                      : ballot.description}
-                  </Card.Text>
-                  <div className="small mb-3">
-                    <div><strong>Start:</strong> {formatDate(ballot.startDate)}</div>
-                    <div><strong>End:</strong> {formatDate(ballot.endDate)}</div>
-                  </div>
-                  <div className="d-grid">
-                    <Link to={`/ballots/${ballot.id}`}>
-                      <Button variant={isBallotActive(ballot) ? "success" : "secondary"} className="w-100">
-                        {isBallotActive(ballot) ? 'Vote Now' : 'View Details'}
-                      </Button>
+        <>
+          {ballots.some(b => isBallotActive(b)) && (
+            <>
+              <Title level={4} style={{ marginTop: '20px', marginBottom: '16px' }}>
+                <CheckCircleOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
+                Active Ballots
+              </Title>
+              <Row gutter={[24, 24]}>
+                {ballots.filter(ballot => isBallotActive(ballot)).map((ballot) => (
+                  <Col xs={24} sm={12} lg={8} key={ballot.id}>
+                    <Link to={`/ballots/${ballot.id}`} style={{ textDecoration: 'none' }}>
+                      <Card
+                        hoverable
+                        className="ballot-card"
+                        style={{
+                          height: '100%',
+                          borderTop: `4px solid ${getBorderColor(ballot)}`,
+                          borderRadius: '8px',
+                          transition: 'all 0.3s ease',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                          {getBallotStatusBadge(ballot)}
+                          <Tag icon={<TeamOutlined />} color="blue">{ballot.candidates.length} candidates</Tag>
+                        </div>
+
+                        <Title level={4} style={{ marginBottom: '12px' }}>{ballot.title}</Title>
+                        <Paragraph ellipsis={{ rows: 2 }} type="secondary" style={{ marginBottom: '16px' }}>
+                          {ballot.description}
+                        </Paragraph>
+
+                        <div style={{ marginBottom: '20px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                            <CalendarOutlined style={{ marginRight: '8px', color: '#76B900' }} />
+                            <Text type="secondary">Start: {formatDate(ballot.startDate)}</Text>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <CalendarOutlined style={{ marginRight: '8px', color: '#E74C3C' }} />
+                            <Text type="secondary">End: {formatDate(ballot.endDate)}</Text>
+                          </div>
+                        </div>
+
+                        <Button type="primary" block>
+                          Vote Now <RightOutlined />
+                        </Button>
+                      </Card>
                     </Link>
-                  </div>
-                </Card.Body>
-              </Card>
-            </Col>
-          ))}
-        </Row>
+                  </Col>
+                ))}
+              </Row>
+            </>
+          )}
+
+          {ballots.some(b => !isBallotActive(b)) && (
+            <>
+              <Divider orientation="left" style={{ marginTop: '30px' }}>Other Ballots</Divider>
+              <Row gutter={[24, 24]}>
+                {ballots.filter(ballot => !isBallotActive(ballot)).map((ballot) => (
+                  <Col xs={24} sm={12} lg={8} key={ballot.id}>
+                    <Link to={`/ballots/${ballot.id}`} style={{ textDecoration: 'none' }}>
+                      <Card
+                        hoverable
+                        className="ballot-card"
+                        style={{
+                          height: '100%',
+                          borderTop: `4px solid ${getBorderColor(ballot)}`,
+                          borderRadius: '8px',
+                          transition: 'all 0.3s ease',
+                          opacity: '0.85',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                          {getBallotStatusBadge(ballot)}
+                          <Tag icon={<TeamOutlined />} color="blue">{ballot.candidates.length} candidates</Tag>
+                        </div>
+
+                        <Title level={4} style={{ marginBottom: '12px' }}>{ballot.title}</Title>
+                        <Paragraph ellipsis={{ rows: 2 }} type="secondary" style={{ marginBottom: '16px' }}>
+                          {ballot.description}
+                        </Paragraph>
+
+                        <div style={{ marginBottom: '20px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                            <CalendarOutlined style={{ marginRight: '8px', color: '#76B900' }} />
+                            <Text type="secondary">Start: {formatDate(ballot.startDate)}</Text>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <CalendarOutlined style={{ marginRight: '8px', color: '#E74C3C' }} />
+                            <Text type="secondary">End: {formatDate(ballot.endDate)}</Text>
+                          </div>
+                        </div>
+
+                        <Button ghost type="primary" block>
+                          View Details <RightOutlined />
+                        </Button>
+                      </Card>
+                    </Link>
+                  </Col>
+                ))}
+              </Row>
+            </>
+          )}
+        </>
       )}
-    </Container>
+
+      <style jsx>{`
+        .ballot-card:hover {
+          transform: translateY(-5px);
+          box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+        }
+      `}</style>
+    </div>
   );
 };
 

@@ -8,7 +8,8 @@ import {
   Param, 
   UseGuards,
   HttpCode,
-  HttpStatus
+  HttpStatus,
+  Req
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -26,10 +27,14 @@ export class UsersController {
     return this.usersService.create(createUserDto);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Get()
-  @UseGuards(JwtAuthGuard, AdminGuard)
-  async findAll(): Promise<User[]> {
-    return this.usersService.findAll();
+  async findAll() {
+    const users = await this.usersService.findAll();
+    return users.map(user => {
+      const { password, privateKey, ...result } = user;
+      return result;
+    });
   }
 
   @Get(':id')
@@ -62,5 +67,23 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, AdminGuard)
   async verifyUser(@Param('id') id: string): Promise<User> {
     return this.usersService.verifyUser(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('profile')
+  async getProfile(@Req() req) {
+    const user = await this.usersService.findById(req.user.sub);
+    const { password, privateKey, ...result } = user;
+    return result;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('wallet')
+  async getWallet(@Req() req) {
+    const user = await this.usersService.findById(req.user.sub);
+    return {
+      walletAddress: user.walletAddress,
+      isVerified: user.isVerified
+    };
   }
 }

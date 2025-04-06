@@ -122,7 +122,10 @@ export class VotingService {
     
     // Check if user has already voted
     const existingVote = await this.voteRepository.findOne({
-      where: { userId, ballotId },
+      where: { 
+        user: { id: userId },
+        ballot: { id: ballotId }
+      },
     });
     
     if (existingVote) {
@@ -149,9 +152,9 @@ export class VotingService {
     
     // Save vote in database
     const vote = this.voteRepository.create({
-      userId,
-      ballotId,
-      candidateId,
+      user: { id: userId },
+      ballot: { id: ballotId },
+      candidate: { id: candidateId },
       transactionHash: blockchainResult.transactionHash,
       status: 'confirmed',
     });
@@ -161,8 +164,10 @@ export class VotingService {
 
   async getUserVotes(userId: string): Promise<Vote[]> {
     return this.voteRepository.find({
-      where: { userId },
-      relations: ['ballot', 'candidate'],
+      where: {
+        user: { id: userId },
+      },
+      relations: ['user', 'ballot', 'candidate'],
     });
   }
 
@@ -172,5 +177,29 @@ export class VotingService {
     
     // Get blockchain tally
     return this.blockchainService.getVoteTally(ballotId);
+  }
+
+  async getVotesByUser(userId: string, ballotId: string): Promise<Vote[]> {
+    return this.voteRepository.find({
+      where: {
+        user: { id: userId },
+        ballot: { id: ballotId },
+      },
+      relations: ['user', 'ballot', 'candidate'],
+    });
+  }
+
+  async createVote(voteData: Partial<Vote>): Promise<Vote> {
+    const vote = this.voteRepository.create(voteData);
+    return this.voteRepository.save(vote);
+  }
+
+  async getVotesByVoterToken(voterToken: string): Promise<Vote[]> {
+    return this.voteRepository.find({
+      where: {
+        user: { voterToken },
+      },
+      relations: ['user', 'ballot', 'candidate'],
+    });
   }
 }
