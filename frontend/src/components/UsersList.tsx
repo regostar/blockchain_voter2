@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Table, Card, Typography } from 'antd';
+import '../App.css';
 
 const { Title } = Typography;
 
@@ -69,7 +70,7 @@ const UsersList: React.FC = () => {
       dataIndex: 'isVerified',
       key: 'isVerified',
       render: (verified: boolean) => (
-        <span style={{ color: verified ? 'green' : 'red' }}>
+        <span className={verified ? 'text-primary' : 'text-dark'}>
           {verified ? 'Verified' : 'Not Verified'}
         </span>
       ),
@@ -83,15 +84,19 @@ const UsersList: React.FC = () => {
   ];
 
   return (
-    <Card>
-      <Title level={2}>Users List</Title>
-      <Table
-        dataSource={users}
-        columns={columns}
-        rowKey="id"
-        loading={loading}
-        pagination={{ pageSize: 10 }}
-      />
+    <Card className="card">
+      <div className="card-header">
+        <Title level={2} className="text-white">Users List</Title>
+      </div>
+      <div style={{ padding: '20px' }}>
+        <Table
+          dataSource={users}
+          columns={columns}
+          rowKey="id"
+          loading={loading}
+          pagination={{ pageSize: 10 }}
+        />
+      </div>
     </Card>
   );
 };

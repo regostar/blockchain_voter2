@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Container, Row, Col, Card, Badge, Button, Spinner, Alert, Form } from 'react-bootstrap';
 import { votingAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
+import VoteTransaction from '../components/VoteTransaction';
 
 const BallotDetail = () => {
   const { id } = useParams();
@@ -12,10 +13,10 @@ const BallotDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedCandidate, setSelectedCandidate] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [voteSuccess, setVoteSuccess] = useState(false);
   const [results, setResults] = useState(null);
   const [showResults, setShowResults] = useState(false);
+  const [transactionHash, setTransactionHash] = useState(null);
 
   useEffect(() => {
     const fetchBallot = async () => {
@@ -50,47 +51,31 @@ const BallotDetail = () => {
     }
   };
 
-  const handleVote = async (e) => {
-    e.preventDefault();
-    
-    if (!selectedCandidate) {
-      setError('Please select a candidate to vote for');
-      return;
-    }
+  const handleCandidateSelect = (candidateId) => {
+    setSelectedCandidate(candidateId);
+    setError('');
+  };
 
-    try {
-      setIsSubmitting(true);
-      setError('');
-      
-      await votingAPI.castVote({
-        ballotId: id,
-        candidateId: selectedCandidate
-      });
-      
-      setVoteSuccess(true);
-      
-      // After successful vote, wait 2 seconds then show results
-      setTimeout(() => {
-        fetchResults();
-      }, 2000);
-      
-    } catch (err) {
-      console.error('Error casting vote:', err);
-      if (err.response?.status === 403) {
-        setError('You have already voted in this ballot or are not eligible to vote');
-      } else {
-        setError('Failed to cast your vote. Please try again later.');
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleVoteSuccess = (data) => {
+    console.log('Vote successful:', data);
+    setVoteSuccess(true);
+    setTransactionHash(data.transactionHash);
+    // After a successful vote, show the results
+    setTimeout(() => {
+      fetchResults();
+    }, 1500);
+  };
+
+  const handleVoteError = (err) => {
+    console.error('Vote error:', err);
+    setError(err.message || 'Failed to cast vote. Please try again.');
   };
 
   // Format date to readable string
   const formatDate = (dateString) => {
-    const options = { 
-      year: 'numeric', 
-      month: 'long', 
+    const options = {
+      year: 'numeric',
+      month: 'long',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
@@ -98,7 +83,7 @@ const BallotDetail = () => {
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
-  // Determine if a ballot is active
+  // Determine if a ballot is active based on dates and isActive flag
   const isBallotActive = (ballot) => {
     const now = new Date();
     const startDate = new Date(ballot.startDate);
@@ -180,7 +165,16 @@ const BallotDetail = () => {
       </div>
 
       {error && <Alert variant="danger">{error}</Alert>}
-      {voteSuccess && <Alert variant="success">Your vote has been successfully recorded!</Alert>}
+      {voteSuccess && (
+        <Alert variant="success">
+          <p>Your vote has been successfully recorded on the blockchain!</p>
+          {transactionHash && (
+            <p>
+              <strong>Transaction Hash:</strong> {transactionHash}
+            </p>
+          )}
+        </Alert>
+      )}
 
       <Row>
         <Col md={8}>
@@ -209,37 +203,37 @@ const BallotDetail = () => {
             <Card>
               <Card.Body>
                 <Card.Title>Cast Your Vote</Card.Title>
-                <Form onSubmit={handleVote}>
-                  {ballot.candidates.map((candidate) => (
-                    <Form.Check
-                      key={candidate.id}
-                      type="radio"
-                      id={`candidate-${candidate.id}`}
-                      label={
-                        <div>
-                          <strong>{candidate.name}</strong>
-                          {candidate.description && (
-                            <p className="text-muted mb-0 small">{candidate.description}</p>
-                          )}
-                        </div>
-                      }
-                      name="candidateGroup"
-                      value={candidate.id}
-                      className="mb-3 p-2 border rounded"
-                      onChange={() => setSelectedCandidate(candidate.id)}
-                      checked={selectedCandidate === candidate.id}
+                <Form>
+                  <Form.Group className="mb-4">
+                    {ballot.candidates.map((candidate) => (
+                      <div key={candidate.id} className="mb-3">
+                        <Form.Check
+                          type="radio"
+                          id={`candidate-${candidate.id}`}
+                          name="candidate"
+                          label={
+                            <div>
+                              <strong>{candidate.name}</strong><br />
+                              <span className="text-muted">{candidate.description}</span>
+                            </div>
+                          }
+                          onChange={() => handleCandidateSelect(candidate.id)}
+                          checked={selectedCandidate === candidate.id}
+                        />
+                      </div>
+                    ))}
+                  </Form.Group>
+
+                  {selectedCandidate ? (
+                    <VoteTransaction
+                      ballot={ballot}
+                      candidateId={selectedCandidate}
+                      onSuccess={handleVoteSuccess}
+                      onError={handleVoteError}
                     />
-                  ))}
-                  <div className="d-grid mt-4">
-                    <Button 
-                      type="submit" 
-                      variant="success" 
-                      size="lg"
-                      disabled={isSubmitting || !selectedCandidate}
-                    >
-                      {isSubmitting ? 'Submitting Vote...' : 'Submit Vote'}
-                    </Button>
-                  </div>
+                  ) : (
+                    <Alert variant="info">Please select a candidate to vote for</Alert>
+                  )}
                 </Form>
               </Card.Body>
             </Card>
@@ -259,12 +253,12 @@ const BallotDetail = () => {
                           <span>{result.votes} votes ({Math.round(result.percentage)}%)</span>
                         </div>
                         <div className="progress">
-                          <div 
-                            className="progress-bar bg-success" 
-                            role="progressbar" 
+                          <div
+                            className="progress-bar bg-success"
+                            role="progressbar"
                             style={{ width: `${result.percentage}%` }}
-                            aria-valuenow={result.percentage} 
-                            aria-valuemin="0" 
+                            aria-valuenow={result.percentage}
+                            aria-valuemin="0"
                             aria-valuemax="100"
                           ></div>
                         </div>
@@ -282,8 +276,8 @@ const BallotDetail = () => {
                 {ballot.isActive ? (
                   <div>
                     <h4>This ballot is {new Date() < new Date(ballot.startDate) ? 'not yet open' : 'now closed'} for voting</h4>
-                    <Button 
-                      variant="primary" 
+                    <Button
+                      variant="primary"
                       className="mt-3"
                       onClick={fetchResults}
                     >
@@ -310,17 +304,48 @@ const BallotDetail = () => {
                   </div>
                 ))}
               </div>
-              
+
               {!canVote && !showResults && (
                 <div className="d-grid mt-3">
-                  <Button 
-                    variant="outline-primary" 
+                  <Button
+                    variant="outline-primary"
                     onClick={fetchResults}
                   >
                     View Results
                   </Button>
                 </div>
               )}
+            </Card.Body>
+          </Card>
+
+          {/* Blockchain Information Card */}
+          <Card className="mt-4">
+            <Card.Body>
+              <Card.Title>Blockchain Information</Card.Title>
+              <p className="text-muted">
+                Votes are recorded on the Ethereum blockchain using smart contracts, ensuring
+                transparency and immutability.
+              </p>
+
+              {voteSuccess && transactionHash && (
+                <div className="mt-3">
+                  <small><strong>Your Transaction Hash:</strong></small>
+                  <div className="text-break border rounded p-2 bg-light mt-1">
+                    <code>{transactionHash}</code>
+                  </div>
+                </div>
+              )}
+
+              <div className="d-grid mt-3">
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  href="/profile?tab=wallet"
+                  as="a"
+                >
+                  Manage Wallet
+                </Button>
+              </div>
             </Card.Body>
           </Card>
         </Col>

@@ -5,12 +5,16 @@ import Register from './components/Register.jsx';
 import HomePage from './components/HomePage.jsx';
 import Navbar from './components/Navbar';
 import ProfilePage from './pages/ProfilePage';
+import ViewBallots from './pages/ViewBallots';
+import BallotDetail from './pages/BallotDetail';
+import CreateBallot from './pages/CreateBallot';
 import { ConfigProvider } from 'antd';
 import './App.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
-const AppContent: React.FC<{ theme: any }> = ({ theme }) => {
-  const { user } = useAuth();
+const AppContent = ({ theme }) => {
+  // eslint-disable-next-line no-unused-vars
+  const { isAuthenticated, isAdmin, loading } = useAuth();
 
   return (
     <ConfigProvider theme={theme}>
@@ -18,8 +22,8 @@ const AppContent: React.FC<{ theme: any }> = ({ theme }) => {
         <Navbar />
         <main>
           <Routes>
-            <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
-            <Route path="/register" element={!user ? <Register /> : <Navigate to="/" />} />
+            <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/" />} />
+            <Route path="/register" element={!isAuthenticated ? <Register /> : <Navigate to="/" />} />
 
             {/* Root path showing home page */}
             <Route path="/" element={<HomePage />} />
@@ -28,18 +32,19 @@ const AppContent: React.FC<{ theme: any }> = ({ theme }) => {
             <Route
               path="/profile"
               element={
-                user ? (
-                  <ProfilePage />
-                ) : (
+                loading ? (
+                  <div className="text-center p-5">Loading...</div>
+                ) : !isAuthenticated ? (
                   <Navigate to="/login" />
+                ) : (
+                  <ProfilePage />
                 )
               }
             />
 
-            {/* Add your protected routes here */}
-            {/* Example:
-            <Route 
-              path="/ballots" 
+            {/* Ballot routes */}
+            <Route
+              path="/ballots"
               element={
                 loading ? (
                   <div className="text-center p-5">Loading...</div>
@@ -48,9 +53,32 @@ const AppContent: React.FC<{ theme: any }> = ({ theme }) => {
                 ) : (
                   <ViewBallots />
                 )
-              } 
+              }
             />
-            */}
+            <Route
+              path="/ballots/:id"
+              element={
+                loading ? (
+                  <div className="text-center p-5">Loading...</div>
+                ) : !isAuthenticated ? (
+                  <Navigate to="/login" />
+                ) : (
+                  <BallotDetail />
+                )
+              }
+            />
+            <Route
+              path="/create-ballot"
+              element={
+                loading ? (
+                  <div className="text-center p-5">Loading...</div>
+                ) : !isAuthenticated || !isAdmin ? (
+                  <Navigate to="/" />
+                ) : (
+                  <CreateBallot />
+                )
+              }
+            />
 
             {/* Catch-all route for 404 */}
             <Route path="*" element={<div style={{ textAlign: 'center', padding: '20px' }}>Page not found</div>} />
@@ -61,7 +89,7 @@ const AppContent: React.FC<{ theme: any }> = ({ theme }) => {
   );
 };
 
-const App: React.FC = () => {
+const App = () => {
   // Define theme colors for Ant Design
   const theme = {
     token: {

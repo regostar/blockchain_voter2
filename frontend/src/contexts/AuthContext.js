@@ -18,7 +18,7 @@ export const AuthProvider = ({ children }) => {
     const checkAuth = async () => {
       const storedUser = localStorage.getItem('user');
       const token = localStorage.getItem('accessToken');
-      
+
       if (storedUser && token) {
         try {
           // Verify the token is still valid
@@ -35,10 +35,10 @@ export const AuthProvider = ({ children }) => {
           // as the interceptor will try to refresh the token
         }
       }
-      
+
       setLoading(false);
     };
-    
+
     checkAuth();
   }, []);
 
@@ -46,16 +46,16 @@ export const AuthProvider = ({ children }) => {
   const login = async (username, password) => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const response = await authAPI.login({ username, password });
       const { accessToken, refreshToken, user } = response.data;
-      
+
       // Save tokens and user data to local storage
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
       localStorage.setItem('user', JSON.stringify(user));
-      
+
       setUser(user);
       setLoading(false);
       return user;
@@ -70,7 +70,7 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const response = await authAPI.register(userData);
       setLoading(false);

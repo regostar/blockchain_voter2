@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Req, Get, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Req, Get, BadRequestException, Param } from '@nestjs/common';
 import { WalletService } from './wallet.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -14,26 +14,34 @@ export class WalletController {
   ) {}
 
   @UseGuards(JwtAuthGuard)
-  @Get('nonce')
-  async getNonce(@Req() req) {
-    return {
-      nonce: await this.walletService.generateNonce(req.user.sub),
-    };
+  @Get('nonce/:userId')
+  async getNonce(@Param('userId') userId: string) {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    const nonce = await this.walletService.generateNonce(userId);
+    return { nonce };
   }
 
   @UseGuards(JwtAuthGuard)
-  @Post('verify')
+  @Post('verify/:userId')
   async verifyWallet(
-    @Req() req,
+    @Param('userId') userId: string,
     @Body('signature') signature: string,
     @Body('walletAddress') walletAddress: string,
+    @Body('message') message: string,
   ) {
-    if (!signature || !walletAddress) {
-      throw new BadRequestException('Signature and wallet address are required');
+    if (!signature || !walletAddress || !message) {
+      throw new BadRequestException('Signature, wallet address, and message are required');
     }
 
     const user = await this.userRepository.findOne({
-      where: { id: req.user.sub },
+      where: { id: userId },
     });
 
     if (!user) {
@@ -46,8 +54,17 @@ export class WalletController {
       throw new BadRequestException('Invalid wallet address');
     }
 
+    // Extract nonce from message for verification
+    const nonceMatch = message.match(/Nonce: (0x[a-fA-F0-9]+)/);
+    if (!nonceMatch || !nonceMatch[1]) {
+      throw new BadRequestException('Invalid message format');
+    }
+    
+    const nonce = nonceMatch[1];
+    
+    // Verify the signature matches the expected signer (the wallet address)
     const isValid = await this.walletService.verifySignature(
-      req.user.sub,
+      userId,
       signature,
       walletAddress,
     );
@@ -67,27 +84,44 @@ export class WalletController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Get('balance')
-  async getBalance(@Req() req) {
-    const user = await this.userRepository.findOne({
-      where: { id: req.user.sub },
-    });
-
-    if (!user || !user.walletAddress) {
-      throw new BadRequestException('User wallet not found');
+  @Post('update/:userId')
+  async updateWalletAddress(
+    @Param('userId') userId: string,
+    @Body('walletAddress') walletAddress: string,
+  ) {
+    if (!walletAddress) {
+      throw new BadRequestException('Wallet address is required');
     }
 
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Verify the wallet address format
+    const isValidAddress = await this.walletService.verifyWalletAddress(walletAddress);
+    if (!isValidAddress) {
+      throw new BadRequestException('Invalid wallet address');
+    }
+
+    // Update user's wallet address
+    user.walletAddress = walletAddress;
+    await this.userRepository.save(user);
+
     return {
-      balance: await this.walletService.getWalletBalance(user.walletAddress),
-      walletAddress: user.walletAddress,
+      success: true,
+      walletAddress: user.walletAddress
     };
   }
 
   @UseGuards(JwtAuthGuard)
-  @Get('status')
-  async getWalletStatus(@Req() req) {
+  @Get('status/:userId')
+  async getWalletStatus(@Param('userId') userId: string) {
     const user = await this.userRepository.findOne({
-      where: { id: req.user.sub },
+      where: { id: userId },
     });
 
     if (!user) {
