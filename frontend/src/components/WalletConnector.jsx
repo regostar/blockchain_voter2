@@ -6,7 +6,7 @@ import { walletAPI } from '../utils/api';
 const { Title, Text, Paragraph } = Typography;
 
 const WalletConnector = () => {
-    const { user, updateUserData } = useAuth();
+    const { user, updateUserData, resetSessionTimer } = useAuth();
     const [isConnecting, setIsConnecting] = useState(false);
     const [error, setError] = useState(null);
     const [walletAddress, setWalletAddress] = useState(null);
@@ -70,29 +70,13 @@ const WalletConnector = () => {
     };
 
     const connectWallet = async () => {
+        setIsConnecting(true);
+        setError(null);
+
         try {
-            setIsConnecting(true);
-            setError(null);
-
-            if (!window.ethereum) {
-                throw new Error('MetaMask is not installed. Please install MetaMask to use blockchain features.');
-            }
-
-            // Request account access
-            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-
-            if (!accounts || accounts.length === 0) {
-                throw new Error('No accounts found. Please unlock your MetaMask wallet and try again.');
-            }
-
-            // Get connected chain ID
-            const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-
-            // Check if connected to the right network (Ganache typically uses 0x539 for chainId)
-            if (chainId !== '0x539' && chainId !== '0x1' && chainId !== '0x5') {
-                setError('Please connect to the Ganache network (or Ethereum Mainnet/Goerli for production) in MetaMask.');
-                // We don't throw here to allow the user to still see the wallet address
-            }
+            const accounts = await window.ethereum.request({
+                method: 'eth_requestAccounts'
+            });
 
             const address = accounts[0];
             setWalletAddress(address);
@@ -102,9 +86,10 @@ const WalletConnector = () => {
             if (user && user.id) {
                 try {
                     await walletAPI.updateWalletAddress(user.id, { walletAddress: address });
+                    // Reset session timer after successful update
+                    resetSessionTimer();
                 } catch (err) {
                     console.error('Failed to update wallet address in backend:', err);
-                    // Non-critical error, don't show to user
                 }
             }
 
@@ -157,17 +142,24 @@ const WalletConnector = () => {
             });
 
             if (verificationResponse.data.success) {
-                // Update user data with verified wallet
-                updateUserData({
+                // Update user data with verified wallet status
+                const updatedUserData = {
+                    ...user,
                     walletAddress: verificationResponse.data.walletAddress,
                     isVerified: verificationResponse.data.isVerified
-                });
+                };
+
+                // Update the user context and reset session timer
+                updateUserData(updatedUserData);
+                resetSessionTimer();
 
                 setIsModalVisible(true);
                 setTransactionStatus({
                     status: 'success',
                     message: 'Your wallet has been successfully verified!',
                 });
+
+                message.success('Wallet verified successfully!');
             } else {
                 throw new Error('Wallet verification failed.');
             }
@@ -178,6 +170,7 @@ const WalletConnector = () => {
                 status: 'error',
                 message: 'Wallet verification failed.',
             });
+            message.error('Failed to verify wallet: ' + (err.message || 'Unknown error'));
         } finally {
             setIsConnecting(false);
         }

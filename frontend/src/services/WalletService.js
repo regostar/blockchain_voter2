@@ -1,148 +1,133 @@
-import { ethers, JsonRpcProvider, formatEther } from 'ethers';
+import { ethers, BrowserProvider, Wallet, formatEther } from 'ethers';
 
 class WalletService {
+    static GANACHE_NETWORK_PARAMS = {
+        chainId: '0x539', // 1337 in hex
+        chainName: 'Ganache',
+        nativeCurrency: {
+            name: 'ETH',
+            symbol: 'ETH',
+            decimals: 18
+        },
+        rpcUrls: ['http://localhost:8545']
+    };
+
     static async setupGanacheNetwork() {
+        if (!window.ethereum) {
+            throw new Error('MetaMask is not installed');
+        }
+
         try {
-            // Check if MetaMask is installed
-            if (!window.ethereum) {
-                throw new Error('MetaMask is not installed');
+            // Check if already on Ganache network
+            const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+            if (chainId === this.GANACHE_NETWORK_PARAMS.chainId) {
+                return; // Already on Ganache network
             }
 
-            // Add Ganache network to MetaMask
-            await window.ethereum.request({
-                method: 'wallet_addEthereumChain',
-                params: [{
-                    chainId: '0x539', // 1337 in hex
-                    chainName: 'Ganache Local',
-                    nativeCurrency: {
-                        name: 'ETH',
-                        symbol: 'ETH',
-                        decimals: 18
-                    },
-                    rpcUrls: ['http://localhost:8545'],
-                    blockExplorerUrls: null
-                }]
-            });
+            // Add Ganache network if not already added
+            try {
+                await window.ethereum.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [this.GANACHE_NETWORK_PARAMS],
+                });
+            } catch (error) {
+                // If network already exists, this error is expected
+                if (!error.message.includes('already exists')) {
+                    throw error;
+                }
+            }
 
             // Switch to Ganache network
             await window.ethereum.request({
                 method: 'wallet_switchEthereumChain',
-                params: [{ chainId: '0x539' }]
+                params: [{ chainId: this.GANACHE_NETWORK_PARAMS.chainId }],
             });
-
-            return true;
         } catch (error) {
-            console.error('Error setting up Ganache network:', error);
-            throw error;
+            throw new Error(`Failed to setup Ganache network: ${error.message}`);
         }
     }
 
     static async importWalletToMetaMask(privateKey) {
+        if (!window.ethereum) {
+            throw new Error('MetaMask is not installed');
+        }
+
         try {
-            // Check if MetaMask is installed
-            if (!window.ethereum) {
-                throw new Error('MetaMask is not installed');
+            // Validate private key format
+            if (!privateKey.startsWith('0x')) {
+                privateKey = '0x' + privateKey;
             }
 
-            // First setup Ganache network
-            await this.setupGanacheNetwork();
-
-            // Import account to MetaMask
-            await window.ethereum.request({
-                method: 'wallet_importRawKey',
-                params: [
-                    privateKey.replace('0x', ''), // Remove 0x prefix if present
-                    'votely123' // Optional password for the account
-                ]
-            });
+            // Create wallet instance
+            const wallet = new Wallet(privateKey);
 
             // Request account access
+            await window.ethereum.request({
+                method: 'eth_requestAccounts'
+            });
+
+            // Import the account
+            await window.ethereum.request({
+                method: 'wallet_importPrivateKey',
+                params: [privateKey.replace('0x', '')],
+            });
+
+            // Switch to the imported account
+            await window.ethereum.request({
+                method: 'wallet_requestPermissions',
+                params: [{
+                    eth_accounts: {}
+                }],
+            });
+
+            // Verify the account is selected
             const accounts = await window.ethereum.request({
                 method: 'eth_requestAccounts'
             });
 
-            return {
-                success: true,
-                address: accounts[0]
-            };
+            if (!accounts.includes(wallet.address.toLowerCase())) {
+                throw new Error('Failed to select the imported account');
+            }
+
+            return wallet.address;
         } catch (error) {
-            console.error('Error importing wallet:', error);
             if (error.code === 4001) {
                 throw new Error('User rejected the request');
             }
-            throw new Error('Failed to import wallet to MetaMask. Make sure Ganache is running on localhost:8545');
+            throw new Error(`Failed to import wallet: ${error.message}`);
         }
     }
 
-    static async connectMetaMask() {
+    static async verifyConnection(expectedAddress) {
         try {
-            if (!window.ethereum) {
-                throw new Error('MetaMask is not installed');
-            }
-
-            // First setup Ganache network
-            await this.setupGanacheNetwork();
-
             const accounts = await window.ethereum.request({
                 method: 'eth_requestAccounts'
             });
 
-            return accounts[0];
-        } catch (error) {
-            console.error('Error connecting to MetaMask:', error);
-            throw error;
-        }
-    }
-
-    static getStoredWalletAddress() {
-        return localStorage.getItem('walletAddress');
-    }
-
-    static storeWalletAddress(address) {
-        localStorage.setItem('walletAddress', address);
-    }
-
-    static clearWalletData() {
-        localStorage.removeItem('walletAddress');
-    }
-
-    static async verifyWalletConnection(expectedAddress) {
-        try {
-            if (!window.ethereum) {
-                return false;
-            }
-
-            // Make sure we're on Ganache network
-            try {
-                await this.setupGanacheNetwork();
-            } catch (error) {
-                console.error('Error switching to Ganache:', error);
-                return false;
-            }
-
-            const accounts = await window.ethereum.request({ method: 'eth_accounts' });
             if (!accounts || accounts.length === 0) {
-                return false;
+                throw new Error('No accounts found');
             }
 
-            // Compare with case-insensitive check
-            return accounts[0].toLowerCase() === expectedAddress.toLowerCase();
+            const currentAddress = accounts[0].toLowerCase();
+            if (currentAddress !== expectedAddress.toLowerCase()) {
+                throw new Error('Connected account does not match the expected address');
+            }
+
+            return true;
         } catch (error) {
-            console.error('Error verifying wallet connection:', error);
-            return false;
+            throw new Error(`Failed to verify connection: ${error.message}`);
         }
     }
 
-    static async getGanacheBalance(address) {
+    static async getBalance(address) {
         try {
-            const provider = new JsonRpcProvider('http://localhost:8545');
+            const provider = new BrowserProvider(window.ethereum);
             const balance = await provider.getBalance(address);
             return formatEther(balance);
         } catch (error) {
-            console.error('Error getting balance:', error);
-            return '0';
+            throw new Error(`Failed to get balance: ${error.message}`);
         }
     }
 }
 
-export default WalletService; 
+export { WalletService }; 

@@ -1,242 +1,209 @@
 import React, { useState } from 'react';
-import { Button, Alert, Modal, Steps, Typography, Space, Card, List } from 'antd';
-import { WalletOutlined, KeyOutlined, CheckCircleOutlined, InfoCircleOutlined } from '@ant-design/icons';
-import WalletService from '../services/WalletService';
+import { Button, Steps, Card, Typography, Alert, List, Spin, message } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import { WalletService } from '../services/WalletService';
 
-const { Text, Paragraph, Title } = Typography;
-const { Step } = Steps;
+const { Title, Text } = Typography;
 
-const WalletImport = ({ privateKey, walletAddress, onSuccess }) => {
+const WalletImport = ({ walletAddress, privateKey }) => {
     const [currentStep, setCurrentStep] = useState(0);
-    const [error, setError] = useState('');
-    const [isModalVisible, setIsModalVisible] = useState(false);
-    const [importing, setImporting] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const navigate = useNavigate();
 
-    const handleImportWallet = async () => {
-        setImporting(true);
-        setError('');
+    const importToMetaMask = async () => {
+        setLoading(true);
+        setError(null);
 
         try {
-            await WalletService.importWalletToMetaMask(privateKey);
-            WalletService.storeWalletAddress(walletAddress);
-            setCurrentStep(2);
-            if (onSuccess) {
-                onSuccess();
+            // First check if MetaMask is installed
+            if (!window.ethereum) {
+                throw new Error('MetaMask is not installed. Please install MetaMask first.');
             }
+
+            // Set a timeout for the entire process
+            const timeout = setTimeout(() => {
+                setLoading(false);
+                setError('Import process timed out. Please try again.');
+            }, 30000); // 30 second timeout
+
+            // 1. Setup Ganache Network
+            try {
+                await WalletService.setupGanacheNetwork();
+                message.success('Ganache network setup successful');
+            } catch (err) {
+                clearTimeout(timeout);
+                throw new Error('Failed to setup Ganache network: ' + err.message);
+            }
+
+            // 2. Import the wallet
+            try {
+                await WalletService.importWalletToMetaMask(privateKey);
+                message.success('Wallet imported successfully');
+            } catch (err) {
+                clearTimeout(timeout);
+                throw new Error('Failed to import wallet: ' + err.message);
+            }
+
+            // 3. Verify the connection
+            try {
+                const accounts = await window.ethereum.request({
+                    method: 'eth_requestAccounts'
+                });
+
+                if (!accounts || accounts.length === 0) {
+                    throw new Error('No accounts found after import');
+                }
+
+                // Verify the imported address matches
+                if (accounts[0].toLowerCase() !== walletAddress.toLowerCase()) {
+                    throw new Error('Imported wallet address does not match the expected address');
+                }
+            } catch (err) {
+                clearTimeout(timeout);
+                throw new Error('Failed to verify wallet connection: ' + err.message);
+            }
+
+            // Clear the timeout if everything succeeded
+            clearTimeout(timeout);
+
+            // Update step and show success message
+            setCurrentStep(2);
+            message.success('Wallet setup completed successfully!');
+
+            // Redirect to profile page after 2 seconds
+            setTimeout(() => {
+                navigate('/profile');
+            }, 2000);
+
         } catch (err) {
-            setError(err.message);
+            setError(err.message || 'Failed to import wallet. Please try again.');
+            message.error(err.message || 'Failed to import wallet');
         } finally {
-            setImporting(false);
+            setLoading(false);
         }
     };
 
     const steps = [
         {
             title: 'Prerequisites',
-            icon: <WalletOutlined />,
             content: (
-                <>
-                    <Card className="info-card">
-                        <Title level={4}><InfoCircleOutlined /> Setup Requirements</Title>
-                        <List
-                            size="small"
-                            bordered
-                            dataSource={[
-                                {
-                                    title: '1. Install MetaMask',
-                                    description: 'Install the MetaMask browser extension to manage your voting wallet.',
-                                    action: (
-                                        <Button
-                                            type="primary"
-                                            href="https://metamask.io/download/"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            size="small"
-                                        >
-                                            Install MetaMask
-                                        </Button>
-                                    )
-                                },
-                                {
-                                    title: '2. Run Ganache',
-                                    description: 'Make sure Ganache is running on localhost:8545',
-                                }
-                            ]}
-                            renderItem={item => (
-                                <List.Item actions={item.action ? [item.action] : undefined}>
-                                    <List.Item.Meta
-                                        title={item.title}
-                                        description={item.description}
-                                    />
-                                </List.Item>
-                            )}
-                        />
-                    </Card>
-
-                    <Alert
-                        message="Important"
-                        description="Make sure Ganache is running before proceeding to the next step."
-                        type="warning"
-                        showIcon
-                        style={{ marginTop: '20px' }}
-                    />
-                </>
+                <List
+                    size="small"
+                    bordered
+                    dataSource={[
+                        'Install MetaMask browser extension',
+                        'Make sure Ganache is running on localhost:8545',
+                        'Save your private key in a secure location'
+                    ]}
+                    renderItem={item => <List.Item>{item}</List.Item>}
+                />
             ),
         },
         {
             title: 'Import Wallet',
-            icon: <KeyOutlined />,
             content: (
                 <>
-                    <Card className="info-card" style={{ marginBottom: '20px' }}>
-                        <Title level={4}><InfoCircleOutlined /> About Your Voting Wallet</Title>
-                        <Paragraph>
-                            During registration, a unique voting wallet was created for you:
-                        </Paragraph>
-                        <Space direction="vertical" style={{ width: '100%' }}>
-                            <div>
-                                <Text strong>Your Wallet Address:</Text><br />
-                                <Text code copyable style={{ fontSize: '12px' }}>{walletAddress}</Text>
-                            </div>
-                            <Alert
-                                message="Ganache Network Setup"
-                                description={
-                                    <div>
-                                        When you click "Import to MetaMask", the system will:
-                                        <ol>
-                                            <li>Add the Ganache network to MetaMask</li>
-                                            <li>Switch to the Ganache network</li>
-                                            <li>Import your voting wallet</li>
-                                        </ol>
-                                    </div>
-                                }
-                                type="info"
-                                showIcon
-                            />
-                        </Space>
-                    </Card>
-
                     <Alert
-                        message="Security Notice"
+                        message="About Your Voting Wallet"
                         description={
                             <>
-                                <p>✓ Only import the private key that was just generated during your registration</p>
-                                <p>✓ Never share your private key with anyone</p>
-                                <p>✓ Make sure you're using the official MetaMask extension</p>
-                                <p>✓ Keep a backup of your private key in a secure location</p>
+                                <Text>During registration, a unique voting wallet was created for you:</Text>
+                                <br />
+                                <Text strong>Your Wallet Address: </Text>
+                                <Text code copyable>{walletAddress}</Text>
                             </>
                         }
-                        type="warning"
+                        type="info"
                         showIcon
                         style={{ marginBottom: '16px' }}
                     />
 
-                    <div style={{ textAlign: 'center' }}>
-                        <Button
-                            type="primary"
-                            onClick={handleImportWallet}
-                            loading={importing}
-                            size="large"
-                        >
-                            Import to MetaMask
-                        </Button>
-                    </div>
+                    <Alert
+                        message="Ganache Network Setup"
+                        description={
+                            <List>
+                                <List.Item>1. Add the Ganache network to MetaMask</List.Item>
+                                <List.Item>2. Switch to the Ganache network</List.Item>
+                                <List.Item>3. Import your voting wallet</List.Item>
+                            </List>
+                        }
+                        type="info"
+                        showIcon
+                    />
+
+                    <Alert
+                        message="Security Notice"
+                        description={
+                            <List>
+                                <List.Item>✓ Only import the private key that was generated during your registration</List.Item>
+                                <List.Item>✓ Never share your private key with anyone</List.Item>
+                                <List.Item>✓ Make sure you're using the official MetaMask extension</List.Item>
+                                <List.Item>✓ Keep a backup of your private key in a secure location</List.Item>
+                            </List>
+                        }
+                        type="warning"
+                        showIcon
+                        style={{ marginTop: '16px' }}
+                    />
                 </>
             ),
         },
         {
             title: 'Complete',
-            icon: <CheckCircleOutlined />,
             content: (
-                <>
-                    <Alert
-                        message="Wallet Imported Successfully"
-                        description={
-                            <>
-                                <p>Your voting wallet has been successfully imported to MetaMask and connected to Ganache.</p>
-                                <p>You can now use it to:</p>
-                                <ul>
-                                    <li>Sign your votes securely</li>
-                                    <li>Verify your voting transactions</li>
-                                    <li>Track your voting history</li>
-                                </ul>
-                            </>
-                        }
-                        type="success"
-                        showIcon
-                        style={{ marginBottom: '16px' }}
-                    />
-                    <div style={{ textAlign: 'center' }}>
-                        <Text strong>Your Voting Wallet Address: </Text><br />
-                        <Text code copyable>{walletAddress}</Text>
-                    </div>
-                </>
+                <Alert
+                    message="Success"
+                    description="Your voting wallet has been successfully imported to MetaMask and connected to the Ganache network!"
+                    type="success"
+                    showIcon
+                />
             ),
         },
     ];
 
-    const showModal = () => {
-        if (!window.ethereum) {
-            setCurrentStep(0);
-        } else {
-            setCurrentStep(1);
-        }
-        setIsModalVisible(true);
-    };
-
     return (
-        <>
-            <Button
-                type="primary"
-                onClick={showModal}
-                icon={<WalletOutlined />}
-                size="large"
-            >
-                Import Voting Wallet to MetaMask
-            </Button>
+        <Card className="wallet-import-card">
+            <Steps current={currentStep} items={steps} style={{ marginBottom: '24px' }} />
 
-            <Modal
-                title={
-                    <Space>
-                        <WalletOutlined />
-                        <span>Import Your Voting Wallet to Ganache</span>
-                    </Space>
-                }
-                open={isModalVisible}
-                onCancel={() => setIsModalVisible(false)}
-                footer={null}
-                width={700}
-            >
-                <Space direction="vertical" style={{ width: '100%' }}>
-                    <Steps current={currentStep} style={{ marginBottom: '24px' }}>
-                        {steps.map(step => (
-                            <Step key={step.title} title={step.title} icon={step.icon} />
-                        ))}
-                    </Steps>
+            <div className="steps-content">
+                {steps[currentStep].content}
+            </div>
 
-                    {error && (
-                        <Alert
-                            message="Error"
-                            description={error}
-                            type="error"
-                            showIcon
-                            style={{ marginBottom: '16px' }}
-                        />
-                    )}
+            {error && (
+                <Alert
+                    message="Error"
+                    description={error}
+                    type="error"
+                    showIcon
+                    style={{ marginTop: '16px' }}
+                />
+            )}
 
-                    <div style={{ minHeight: '300px', padding: '20px' }}>
-                        {steps[currentStep].content}
-                    </div>
-                </Space>
-            </Modal>
+            <div className="steps-action" style={{ marginTop: '24px', textAlign: 'center' }}>
+                {currentStep === 1 && (
+                    <Button
+                        type="primary"
+                        onClick={importToMetaMask}
+                        loading={loading}
+                        disabled={loading}
+                        size="large"
+                        style={{ minWidth: '200px' }}
+                    >
+                        {loading ? 'Importing...' : 'Import to MetaMask'}
+                    </Button>
+                )}
+            </div>
 
-            <style jsx>{`
-                .info-card {
-                    background: #f8f9fa;
-                    border: 1px solid #e8e8e8;
-                }
-            `}</style>
-        </>
+            {loading && (
+                <div style={{ textAlign: 'center', marginTop: '16px' }}>
+                    <Spin />
+                    <Text type="secondary" style={{ display: 'block', marginTop: '8px' }}>
+                        Please wait while we set up your wallet...
+                    </Text>
+                </div>
+            )}
+        </Card>
     );
 };
 
