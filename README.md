@@ -11,6 +11,16 @@ A secure, transparent, and decentralized voting system built on blockchain techn
 - **Transparency**: All votes are recorded on the blockchain and can be independently verified.
 - **Privacy**: Votes are encrypted to maintain voter privacy.
 
+## Output
+
+![image](https://github.com/user-attachments/assets/952268a8-d782-4715-a3be-1dd2cc843e82)
+
+
+![image](https://github.com/user-attachments/assets/925df8ec-be4c-4c8e-95a0-64e15b482a59)
+
+
+
+
 ## Tech Stack
 
 ### Backend
