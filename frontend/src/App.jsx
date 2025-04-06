@@ -3,11 +3,13 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Login from './components/Login.jsx';
 import Register from './components/Register.jsx';
 import HomePage from './components/HomePage.jsx';
-import Navbar from './components/Navbar';
+import Navbar from './components/Navbar.jsx';
 import ProfilePage from './pages/ProfilePage';
 import ViewBallots from './pages/ViewBallots';
 import BallotDetail from './pages/BallotDetail';
 import CreateBallot from './pages/CreateBallot';
+import SimpleVotePage from './pages/SimpleVotePage.jsx';
+import MyVotes from './pages/MyVotes.jsx';
 import { ConfigProvider } from 'antd';
 import './App.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -27,6 +29,34 @@ const AppContent = ({ theme }) => {
 
             {/* Root path showing home page */}
             <Route path="/" element={<HomePage />} />
+
+            {/* Simple Vote Page */}
+            <Route 
+              path="/simple-vote" 
+              element={
+                loading ? (
+                  <div className="text-center p-5">Loading...</div>
+                ) : !isAuthenticated ? (
+                  <Navigate to="/login" />
+                ) : (
+                  <SimpleVotePage />
+                )
+              } 
+            />
+
+            {/* My Votes Page */}
+            <Route
+              path="/my-votes"
+              element={
+                loading ? (
+                  <div className="text-center p-5">Loading...</div>
+                ) : !isAuthenticated ? (
+                  <Navigate to="/login" />
+                ) : (
+                  <MyVotes />
+                )
+              }
+            />
 
             {/* Profile page - protected route */}
             <Route
