@@ -112,39 +112,18 @@ export class AuthService {
         throw new BadRequestException('Username already registered');
       }
 
-      // Create a new Ethereum wallet
-      const wallet = ethers.Wallet.createRandom();
-      console.log('Created wallet:', {
-        address: wallet.address,
-        hasPrivateKey: !!wallet.privateKey
-      });
-
       // Hash the password
       const saltRounds = 10;
       const hashedPassword = await bcrypt.hash(createUserDto.password, saltRounds);
 
-      // Generate voter token
-      const voterToken = this.generateVoterToken(wallet.address);
-      console.log('Generated voter token:', !!voterToken);
-
-      // Prepare user data
+      // Create user with hashed password
+      // The wallet will be automatically generated in the User entity @BeforeInsert hook
       const userData = {
         ...createUserDto,
         password: hashedPassword,
-        walletAddress: wallet.address,
-        privateKey: wallet.privateKey,
-        voterToken: voterToken,
-        isVerified: false
       };
 
-      console.log('Creating user with data:', {
-        username: userData.username,
-        hasWalletAddress: !!userData.walletAddress,
-        hasPrivateKey: !!userData.privateKey,
-        hasVoterToken: !!userData.voterToken
-      });
-
-      // Create user with wallet and hashed password
+      // Create user - wallet will be generated automatically
       const user = await this.usersService.create(userData);
 
       console.log('User created successfully:', {
@@ -154,21 +133,42 @@ export class AuthService {
         hasVoterToken: !!user.voterToken
       });
 
+      // Fetch the complete user with private key for the response
+      const completeUser = await this.userRepository
+        .createQueryBuilder('user')
+        .select([
+          'user.id',
+          'user.username',
+          'user.email',
+          'user.walletAddress',
+          'user.privateKey',
+          'user.isVerified'
+        ])
+        .where('user.id = :id', { id: user.id })
+        .getOne();
+
+      if (!completeUser || !completeUser.walletAddress) {
+        throw new Error('Failed to generate wallet for user');
+      }
+
+      // Log wallet generation success
+      console.log('Wallet generated successfully:', {
+        userId: completeUser.id,
+        hasWalletAddress: !!completeUser.walletAddress,
+        hasPrivateKey: !!completeUser.privateKey
+      });
+
       return {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        walletAddress: wallet.address,
-        isVerified: user.isVerified,
+        id: completeUser.id,
+        username: completeUser.username,
+        email: completeUser.email,
+        walletAddress: completeUser.walletAddress,
+        isVerified: completeUser.isVerified,
         message: 'Please save your private key securely',
-        privateKey: wallet.privateKey
+        privateKey: completeUser.privateKey
       };
     } catch (error) {
-      console.error('Registration error:', {
-        message: error.message,
-        stack: error.stack,
-        details: error
-      });
+      console.error('Registration error:', error);
       throw new BadRequestException(error.message || 'Registration failed');
     }
   }

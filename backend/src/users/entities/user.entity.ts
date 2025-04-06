@@ -3,6 +3,7 @@ import { Vote } from '../../voting/entities/vote.entity';
 import { Ballot } from '../../voting/entities/ballot.entity';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import { ethers } from 'ethers';
 
 @Entity('users')
 export class User {
@@ -58,18 +59,54 @@ export class User {
   }
 
   @BeforeInsert()
-  @BeforeUpdate()
-  async encryptPrivateKey() {
-    if (this.privateKey && !this.privateKey.includes(':')) {
-      const algorithm = 'aes-256-cbc';
-      const secret = process.env.JWT_SECRET || 'default-secret-key';
-      const key = crypto.scryptSync(secret, 'salt', 32);
-      const iv = crypto.randomBytes(16);
-      const cipher = crypto.createCipheriv(algorithm, key, iv);
-      let encrypted = cipher.update(this.privateKey, 'utf8', 'hex');
-      encrypted += cipher.final('hex');
-      this.privateKey = `${iv.toString('hex')}:${encrypted}`;
+  async generateWallet() {
+    console.log('Starting wallet generation for user:', this.username);
+    
+    if (!this.walletAddress) {
+      try {
+        // Create new wallet
+        const wallet = ethers.Wallet.createRandom();
+        console.log('Wallet created successfully:', {
+          username: this.username,
+          hasAddress: !!wallet.address,
+          hasPrivateKey: !!wallet.privateKey
+        });
+
+        // Set wallet data
+        this.walletAddress = wallet.address;
+        this.privateKey = wallet.privateKey;
+        
+        // Generate voter token
+        this.voterToken = this.generateVoterToken();
+        
+        console.log('Wallet data assigned:', {
+          username: this.username,
+          hasWalletAddress: !!this.walletAddress,
+          hasPrivateKey: !!this.privateKey,
+          hasVoterToken: !!this.voterToken
+        });
+      } catch (error) {
+        console.error('Error in wallet generation:', {
+          username: this.username,
+          error: error.message,
+          stack: error.stack
+        });
+        throw new Error(`Failed to generate wallet: ${error.message}`);
+      }
+    } else {
+      console.log('Wallet already exists for user:', this.username);
     }
+  }
+
+  private generateVoterToken(): string {
+    return crypto.randomBytes(32).toString('hex');
+  }
+
+  toJSON() {
+    const obj: Partial<this> = { ...this };
+    delete obj.privateKey;
+    delete obj.password;
+    return obj;
   }
 
   async comparePassword(attempt: string): Promise<boolean> {
