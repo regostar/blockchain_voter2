@@ -1,86 +1,95 @@
 import React, { useState } from 'react';
-import { Form, Input, Button, Alert, Spin, Card, Typography } from 'antd';
-import { useNavigate } from 'react-router-dom';
+import { Form, Input, Button, Alert, message } from 'antd';
+import { UserOutlined, LockOutlined } from '@ant-design/icons';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import '../App.css';
 
-const { Title } = Typography;
-
 const Login = () => {
+  const [form] = Form.useForm();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
   const { login } = useAuth();
 
   const onFinish = async (values) => {
-    setLoading(true);
-    setError('');
     try {
-      const user = await login(values.username, values.password);
-
-      // Check if user has set their full name
-      // If not, redirect to profile page to complete profile
-      if (!user.fullName || user.fullName.trim() === '') {
-        navigate('/profile', { state: { needsProfileSetup: true } });
-      } else {
-        navigate('/'); // Navigate to home page after successful login
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Login failed');
+      setError('');
+      setLoading(true);
+      await login(values.username, values.password);
+      message.success('Login successful!');
+    } catch (error) {
+      setError(error.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Spin spinning={loading} tip="Logging in...">
-      <div style={{ maxWidth: 400, margin: '0 auto', padding: '20px' }}>
-        <Card className="card">
-          <div className="card-header">
-            <Title level={2} className="text-white">Login to Votely</Title>
-          </div>
-          <div style={{ padding: '20px' }}>
-            {error && <Alert message={error} type="error" style={{ marginBottom: '16px' }} />}
-            <Form
-              name="login"
-              onFinish={onFinish}
-              layout="vertical"
+    <div className="auth-container">
+      <div className="auth-card">
+        <div className="card-header">
+          <div className="auth-logo">Votely</div>
+          <div className="auth-subtitle">Secure Blockchain Voting Platform</div>
+        </div>
+        <div className="card-content">
+          {error && (
+            <Alert
+              message="Login Error"
+              description={error}
+              type="error"
+              showIcon
+              closable
+              onClose={() => setError('')}
+            />
+          )}
+          <Form
+            form={form}
+            name="login"
+            className="auth-form"
+            onFinish={onFinish}
+            layout="vertical"
+          >
+            <Form.Item
+              name="username"
+              rules={[{ required: true, message: 'Please input your username!' }]}
             >
-              <Form.Item
-                label="Username"
-                name="username"
-                rules={[
-                  { required: true, message: 'Please input your username!' },
-                  { min: 3, message: 'Username must be at least 3 characters!' }
-                ]}
-              >
-                <Input placeholder="Enter your username" disabled={loading} />
-              </Form.Item>
+              <Input
+                prefix={<UserOutlined className="site-form-item-icon" />}
+                placeholder="Username"
+                size="large"
+              />
+            </Form.Item>
 
-              <Form.Item
-                label="Password"
-                name="password"
-                rules={[
-                  { required: true, message: 'Please input your password!' },
-                  { min: 6, message: 'Password must be at least 6 characters!' }
-                ]}
-              >
-                <Input.Password placeholder="Enter your password" disabled={loading} />
-              </Form.Item>
+            <Form.Item
+              name="password"
+              rules={[{ required: true, message: 'Please input your password!' }]}
+            >
+              <Input.Password
+                prefix={<LockOutlined className="site-form-item-icon" />}
+                placeholder="Password"
+                size="large"
+              />
+            </Form.Item>
 
-              <Form.Item>
-                <Button type="primary" htmlType="submit" style={{ width: '100%' }} loading={loading} className="btn-primary">
-                  Login
-                </Button>
-              </Form.Item>
-            </Form>
-            <div style={{ textAlign: 'center', marginTop: '16px' }}>
-              Don't have an account? <a href="/register" className="text-primary">Register here</a>
-            </div>
+            <Form.Item>
+              <Button
+                type="primary"
+                htmlType="submit"
+                className="auth-button"
+                loading={loading}
+              >
+                Sign In
+              </Button>
+            </Form.Item>
+          </Form>
+
+          <div className="auth-footer">
+            <span className="text-light">Don't have an account? </span>
+            <Link to="/register">Create one</Link>
           </div>
-        </Card>
+        </div>
       </div>
-    </Spin>
+    </div>
   );
 };
 

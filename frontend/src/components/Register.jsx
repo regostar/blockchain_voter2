@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Form, Input, Button, Alert, Spin, Card, Typography, Modal } from 'antd';
+import { Form, Input, Button, Alert, Spin, Card, Typography, Divider, Modal } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { UserOutlined, LockOutlined, MailOutlined, IdcardOutlined } from '@ant-design/icons';
 import '../App.css';
 
 const { Title, Text } = Typography;
@@ -20,18 +21,18 @@ const Register = () => {
     setIsWalletGenerating(true);
 
     try {
-      // Show wallet generation modal
       Modal.info({
         title: 'Generating Your Secure Wallet',
         content: (
-          <div>
-            <p>Please wait while we generate your secure blockchain wallet...</p>
+          <div style={{ textAlign: 'center', padding: '20px' }}>
             <Spin size="large" />
+            <p style={{ marginTop: '16px' }}>Please wait while we generate your secure blockchain wallet...</p>
           </div>
         ),
         closable: false,
         maskClosable: false,
-        footer: null
+        footer: null,
+        width: 400
       });
 
       const response = await register({
@@ -41,14 +42,11 @@ const Register = () => {
         fullName: values.fullName
       });
 
-      // Verify that we have wallet data before proceeding
       if (!response || !response.walletAddress || !response.privateKey) {
         throw new Error('Wallet generation failed. Please try again.');
       }
 
-      // Close the wallet generation modal
       Modal.destroyAll();
-
       setRegistrationSuccess(response);
     } catch (err) {
       Modal.destroyAll();
@@ -64,97 +62,131 @@ const Register = () => {
   };
 
   return (
-    <div style={{ maxWidth: 500, margin: '0 auto', padding: '20px' }}>
+    <div className="auth-container">
       {registrationSuccess ? (
-        <Card className="card">
+        <Card className="auth-card">
           <div className="card-header">
             <Title level={2} className="text-white">Welcome to Votely!</Title>
+            <Text className="text-white" style={{ opacity: 0.8 }}>
+              Your account has been created successfully
+            </Text>
           </div>
-          <div style={{ padding: '20px' }}>
+          <div className="card-content">
             <Alert
               message="Registration Successful"
               description={
-                <>
-                  <p>Your account has been created successfully. Your secure blockchain wallet has been generated.</p>
-                  <p>Wallet Address: <Text code copyable>{registrationSuccess.walletAddress}</Text></p>
+                <div>
+                  <p>Your secure blockchain wallet has been generated.</p>
+                  <div style={{ margin: '16px 0' }}>
+                    <Text strong>Wallet Address:</Text>
+                    <Text code copyable style={{ display: 'block', marginTop: '8px' }}>
+                      {registrationSuccess.walletAddress}
+                    </Text>
+                  </div>
                   {registrationSuccess.privateKey && (
-                    <>
-                      <p>Private Key: <Text code copyable type="danger">{registrationSuccess.privateKey}</Text></p>
-                      <Text type="warning">
+                    <div style={{ margin: '16px 0' }}>
+                      <Text strong>Private Key:</Text>
+                      <Text code copyable type="danger" style={{ display: 'block', marginTop: '8px' }}>
+                        {registrationSuccess.privateKey}
+                      </Text>
+                      <Text type="warning" style={{ display: 'block', marginTop: '8px' }}>
                         This is the only time you will see your private key. Please save it in a secure location.
                         You will need it for voting transactions.
                       </Text>
-                    </>
+                    </div>
                   )}
-                </>
+                </div>
               }
               type="success"
               showIcon
-              style={{ marginBottom: '20px' }}
+              style={{ marginBottom: '24px' }}
             />
-            <Button type="primary" onClick={handleContinue} style={{ width: '100%' }}>
+            <Button
+              type="primary"
+              onClick={handleContinue}
+              className="auth-button"
+              block
+            >
               Continue to Login
             </Button>
           </div>
         </Card>
       ) : (
-        <Card className="card">
+        <Card className="auth-card">
           <div className="card-header">
-            <Title level={2} className="text-white">Register for Votely</Title>
+            <Title level={2} className="text-white">Create Account</Title>
+            <Text className="text-white" style={{ opacity: 0.8 }}>
+              Join Votely and start voting securely
+            </Text>
           </div>
-          <div style={{ padding: '20px' }}>
-            {error && <Alert message={error} type="error" style={{ marginBottom: '16px' }} />}
+          <div className="card-content">
+            {error && (
+              <Alert
+                message="Registration Error"
+                description={error}
+                type="error"
+                showIcon
+                style={{ marginBottom: '24px' }}
+              />
+            )}
             <Form
               name="register"
               onFinish={onFinish}
               layout="vertical"
-              disabled={loading || isWalletGenerating}
+              size="large"
             >
               <Form.Item
-                label="Username"
                 name="username"
                 rules={[
                   { required: true, message: 'Please input your username!' },
                   { min: 3, message: 'Username must be at least 3 characters!' }
                 ]}
               >
-                <Input placeholder="Choose a username" />
+                <Input
+                  prefix={<UserOutlined className="site-form-item-icon" />}
+                  placeholder="Username"
+                />
               </Form.Item>
 
               <Form.Item
-                label="Full Name"
                 name="fullName"
                 rules={[
                   { required: true, message: 'Please input your full name!' }
                 ]}
               >
-                <Input placeholder="Enter your full name" />
+                <Input
+                  prefix={<IdcardOutlined className="site-form-item-icon" />}
+                  placeholder="Full Name"
+                />
               </Form.Item>
 
               <Form.Item
-                label="Email"
                 name="email"
                 rules={[
                   { required: true, message: 'Please input your email!' },
                   { type: 'email', message: 'Please enter a valid email address!' }
                 ]}
               >
-                <Input placeholder="Enter your email" />
+                <Input
+                  prefix={<MailOutlined className="site-form-item-icon" />}
+                  placeholder="Email"
+                />
               </Form.Item>
 
               <Form.Item
-                label="Password"
                 name="password"
                 rules={[
                   { required: true, message: 'Please input your password!' },
                   { min: 6, message: 'Password must be at least 6 characters!' }
                 ]}
               >
-                <Input.Password placeholder="Create a password" />
+                <Input.Password
+                  prefix={<LockOutlined className="site-form-item-icon" />}
+                  placeholder="Password"
+                />
               </Form.Item>
 
               <Form.Item
-                label="Confirm Password"
                 name="confirmPassword"
                 dependencies={['password']}
                 rules={[
@@ -169,23 +201,34 @@ const Register = () => {
                   }),
                 ]}
               >
-                <Input.Password placeholder="Confirm your password" />
+                <Input.Password
+                  prefix={<LockOutlined className="site-form-item-icon" />}
+                  placeholder="Confirm Password"
+                />
               </Form.Item>
 
               <Form.Item>
                 <Button
                   type="primary"
                   htmlType="submit"
-                  style={{ width: '100%' }}
+                  className="auth-button"
                   loading={loading || isWalletGenerating}
-                  className="btn-primary"
+                  block
                 >
-                  {isWalletGenerating ? 'Generating Wallet...' : 'Register'}
+                  {isWalletGenerating ? 'Generating Wallet...' : 'Create Account'}
                 </Button>
               </Form.Item>
             </Form>
-            <div style={{ textAlign: 'center', marginTop: '16px' }}>
-              Already have an account? <a href="/login" className="text-primary">Login here</a>
+
+            <Divider>or</Divider>
+
+            <div className="auth-footer">
+              <Text>
+                Already have an account?{' '}
+                <a href="/login" className="text-primary">
+                  Sign in
+                </a>
+              </Text>
             </div>
           </div>
         </Card>
