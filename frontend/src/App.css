@@ -1,12 +1,12 @@
 :root {
-  --primary-color: #1A73E8; /* Google Blue */
-  --accent-color: #34A853; /* Google Green */
+  --primary-color: #00A86B; /* Emerald Green */
+  --accent-color: #00C853; /* Bright Green */
   --success-color: #27AE60; /* Forest green */
-  --text-color: #202124; /* Google Text */
-  --text-light: #5F6368; /* Google Light Text */
-  --background-light: #F8F9FA; /* Light Gray */
+  --text-color: #1A1A1A; /* Near Black */
+  --text-light: #666666; /* Dark Gray */
+  --background-light: #F5F9F7; /* Light Green Tint */
   --white: #FFFFFF;
-  --border-color: #DADCE0;
+  --border-color: #E0E6E3;
   --shadow-color: rgba(0, 0, 0, 0.1);
 }
 
@@ -968,7 +968,7 @@ body {
   left: 0;
   right: 0;
   height: 200px;
-  background: var(--primary-color);
+  background: linear-gradient(135deg, var(--primary-color) 0%, #008F5D 100%);
   border-radius: 0 0 50% 50%;
   z-index: 0;
 }
@@ -1064,7 +1064,7 @@ body {
 .ant-input-affix-wrapper:hover,
 .ant-input-affix-wrapper:focus {
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.1);
+  box-shadow: 0 0 0 2px rgba(0, 168, 107, 0.1);
 }
 
 .ant-input-affix-wrapper .ant-input {
@@ -1078,8 +1078,8 @@ body {
 }
 
 .ant-alert-success {
-  background-color: rgba(52, 168, 83, 0.1);
-  border-color: var(--accent-color);
+  background-color: rgba(0, 168, 107, 0.1);
+  border-color: var(--primary-color);
 }
 
 .ant-alert-error {
