@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
-import { Form, Input, Button, Alert, Spin, Card, Typography, Modal } from 'antd';
+import { Form, Input, Button, Alert, Spin, Card, Typography, Modal, Divider } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import WalletImport from './WalletImport';
 import '../App.css';
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 
 const Register = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(null);
   const [isWalletGenerating, setIsWalletGenerating] = useState(false);
+  const [isWalletImported, setIsWalletImported] = useState(false);
   const navigate = useNavigate();
   const { register } = useAuth();
 
@@ -60,7 +62,22 @@ const Register = () => {
   };
 
   const handleContinue = () => {
-    navigate('/login');
+    if (!isWalletImported) {
+      Modal.confirm({
+        title: 'Import Wallet First',
+        content: 'It is recommended to import your wallet to MetaMask before continuing. Do you want to proceed without importing?',
+        okText: 'Continue anyway',
+        cancelText: 'Import wallet',
+        onOk: () => navigate('/login'),
+        onCancel: () => null,
+      });
+    } else {
+      navigate('/login');
+    }
+  };
+
+  const handleWalletImportSuccess = () => {
+    setIsWalletImported(true);
   };
 
   return (
@@ -92,7 +109,27 @@ const Register = () => {
               showIcon
               style={{ marginBottom: '20px' }}
             />
-            <Button type="primary" onClick={handleContinue} style={{ width: '100%' }}>
+
+            <Divider />
+
+            <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+              <Paragraph>
+                To start voting, import your wallet to MetaMask:
+              </Paragraph>
+              <WalletImport
+                privateKey={registrationSuccess.privateKey}
+                walletAddress={registrationSuccess.walletAddress}
+                onSuccess={handleWalletImportSuccess}
+              />
+            </div>
+
+            <Divider />
+
+            <Button
+              type="primary"
+              onClick={handleContinue}
+              style={{ width: '100%' }}
+            >
               Continue to Login
             </Button>
           </div>

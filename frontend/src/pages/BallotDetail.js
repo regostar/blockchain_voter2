@@ -56,16 +56,16 @@ const BallotDetail = () => {
 
   const handleCandidateSelect = (candidateId) => {
     setSelectedCandidate(candidateId);
-    setError('');
+      setError('');
   };
 
   const handleVoteSuccess = (data) => {
     console.log('Vote successful:', data);
-    setVoteSuccess(true);
+      setVoteSuccess(true);
     setTransactionHash(data.transactionHash);
     // After a successful vote, show the results
-    setTimeout(() => {
-      fetchResults();
+      setTimeout(() => {
+        fetchResults();
     }, 1500);
   };
 
@@ -76,9 +76,9 @@ const BallotDetail = () => {
 
   // Format date to readable string
   const formatDate = (dateString) => {
-    const options = {
-      year: 'numeric',
-      month: 'long',
+    const options = { 
+      year: 'numeric', 
+      month: 'long', 
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
@@ -144,12 +144,12 @@ const BallotDetail = () => {
           message="Error Loading Ballot"
           description={
             <>
-              {error}
+          {error}
               <div style={{ marginTop: '16px' }}>
                 <Button type="primary" onClick={() => navigate('/ballots')}>
                   <ArrowLeftOutlined /> Back to Ballots
-                </Button>
-              </div>
+            </Button>
+          </div>
             </>
           }
           type="error"
@@ -170,8 +170,8 @@ const BallotDetail = () => {
               <div style={{ marginTop: '16px' }}>
                 <Button type="primary" onClick={() => navigate('/ballots')}>
                   <ArrowLeftOutlined /> Back to Ballots
-                </Button>
-              </div>
+            </Button>
+          </div>
             </>
           }
           type="warning"
@@ -208,7 +208,7 @@ const BallotDetail = () => {
             <div>
               <Title level={2} style={{ marginBottom: '8px' }}>{ballot.title}</Title>
               <Space>
-                {getBallotStatusBadge(ballot)}
+          {getBallotStatusBadge(ballot)}
                 <Badge
                   count={`${ballot.candidates.length} Candidates`}
                   style={{ backgroundColor: '#1890ff' }}
@@ -230,7 +230,7 @@ const BallotDetail = () => {
                 <Text strong>Admin</Text>
               </Card>
             </div>
-          </div>
+        </div>
         </Card>
       </div>
 
@@ -374,8 +374,8 @@ const BallotDetail = () => {
               </Title>
               <Divider />
 
-              {results ? (
-                <div>
+                {results ? (
+                  <div>
                   <Paragraph>
                     <Text strong>Total Votes: </Text>
                     <Text>{results.totalVotes}</Text>
@@ -402,8 +402,8 @@ const BallotDetail = () => {
                               <div>
                                 <Text strong>{result.votes} votes</Text>
                                 <Text type="secondary"> ({percentage}%)</Text>
-                              </div>
-                            </div>
+                        </div>
+                      </div>
                             <Text type="secondary">{candidate?.description}</Text>
                           </div>
 
@@ -420,13 +420,13 @@ const BallotDetail = () => {
                       );
                     })}
                   </Space>
-                </div>
-              ) : (
+                  </div>
+                ) : (
                 <div style={{ textAlign: 'center', padding: '20px' }}>
                   <Spin />
                   <Paragraph style={{ marginTop: '16px' }}>Loading results...</Paragraph>
                 </div>
-              )}
+                )}
             </Card>
           ) : (
             <Card
@@ -445,7 +445,7 @@ const BallotDetail = () => {
                     <Title level={4}>
                       This ballot is {new Date() < new Date(ballot.startDate) ? 'not yet open' : 'now closed'} for voting
                     </Title>
-                    <Button
+                    <Button 
                       type="primary"
                       size="large"
                       icon={<CheckCircleOutlined />}
@@ -483,7 +483,7 @@ const BallotDetail = () => {
             <Divider />
 
             <Space direction="vertical" style={{ width: '100%' }}>
-              {ballot.candidates.map((candidate) => (
+                {ballot.candidates.map((candidate) => (
                 <Card
                   key={candidate.id}
                   size="small"
@@ -497,12 +497,12 @@ const BallotDetail = () => {
                 </Card>
               ))}
             </Space>
-
-            {!canVote && !showResults && (
-              <Button
+              
+              {!canVote && !showResults && (
+                  <Button 
                 type="primary"
                 block
-                onClick={fetchResults}
+                    onClick={fetchResults}
                 style={{ marginTop: '16px' }}
               >
                 View Results
@@ -559,8 +559,8 @@ const BallotDetail = () => {
               <div>
                 <Text strong>Transaction:</Text><br />
                 <Text code copyable style={{ fontSize: '12px' }}>{transactionHash}</Text>
-              </div>
-            )}
+                </div>
+              )}
           </Card>
         </Col>
       </Row>
