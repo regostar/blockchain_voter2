@@ -18,6 +18,7 @@ A secure, transparent, and decentralized voting system built on blockchain techn
 
 ![image](https://github.com/user-attachments/assets/925df8ec-be4c-4c8e-95a0-64e15b482a59)
 
+![image](https://github.com/user-attachments/assets/49aa10ed-85f5-4fc8-980e-5fec7bf0fc9f)
 
 
 
