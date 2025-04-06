@@ -13,6 +13,8 @@ A secure, transparent, and decentralized voting system built on blockchain techn
 
 ## Output
 
+![GMT20250406-174939_Clip_Abineshs Clip 04_06_2025 (1)](https://github.com/user-attachments/assets/8aa162f4-e777-414c-a1ee-c8bcb394edc6)
+
 ![image](https://github.com/user-attachments/assets/952268a8-d782-4715-a3be-1dd2cc843e82)
 
 
@@ -20,7 +22,9 @@ A secure, transparent, and decentralized voting system built on blockchain techn
 
 ![image](https://github.com/user-attachments/assets/49aa10ed-85f5-4fc8-980e-5fec7bf0fc9f)
 
+## Video - 
 
+https://us04web.zoom.us/clips/share/vYjmuw-KRPuMJBTgNnmBOA
 
 ## Tech Stack
 
