@@ -1,280 +1,189 @@
-import React, { useState, useEffect } from 'react';
-import { Button, Alert, Typography, Modal, Spin } from 'antd';
-import { CheckCircleOutlined, WarningOutlined } from '@ant-design/icons';
+import React, { useState } from 'react';
+import { Modal, Steps, Alert, Button, message } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import { ethers } from 'ethers';
 import { useAuth } from '../contexts/AuthContext';
-import { votingAPI } from '../utils/api';
 
-const { Title, Text, Paragraph } = Typography;
-
-const VoteTransaction = ({ ballot, candidateId, onSuccess, onError }) => {
-    const { user } = useAuth();
-    const [isVoting, setIsVoting] = useState(false);
+const VoteTransaction = ({ visible, onClose, candidate, electionContract, electionId }) => {
+    const [currentStep, setCurrentStep] = useState(0);
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [isModalVisible, setIsModalVisible] = useState(false);
-    const [transactionStatus, setTransactionStatus] = useState(null);
-    const [metamaskInstalled, setMetamaskInstalled] = useState(true);
-    const [walletConnected, setWalletConnected] = useState(false);
-    const [walletAddress, setWalletAddress] = useState(null);
+    const [txHash, setTxHash] = useState(null);
+    const { user } = useAuth();
+    const navigate = useNavigate();
 
-    useEffect(() => {
-        // Check if MetaMask is installed
-        if (typeof window.ethereum === 'undefined') {
-            setMetamaskInstalled(false);
-            return;
-        }
+    const steps = [
+        {
+            title: 'Confirm Vote',
+            description: 'Confirm your vote for the selected candidate',
+        },
+        {
+            title: 'Sign Transaction',
+            description: 'Sign the voting transaction with MetaMask',
+        },
+        {
+            title: 'Complete',
+            description: 'Your vote has been recorded',
+        },
+    ];
 
-        // Check if already connected
-        checkConnection();
+    const handleVote = async () => {
+        setLoading(true);
+        setError(null);
 
-        // Set wallet address from user data if available
-        if (user && user.walletAddress) {
-            setWalletAddress(user.walletAddress);
-        }
-
-        // Listen for account changes
-        window.ethereum.on('accountsChanged', handleAccountsChanged);
-
-        return () => {
-            if (window.ethereum) {
-                window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+        try {
+            if (!window.ethereum) {
+                throw new Error('Please install MetaMask to vote');
             }
-        };
-    }, [user]);
 
-    const checkConnection = async () => {
-        try {
-            const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-            if (accounts.length > 0) {
-                setWalletAddress(accounts[0]);
-                setWalletConnected(true);
-            } else {
-                setWalletConnected(false);
-            }
-        } catch (err) {
-            console.error('Error checking connection:', err);
-            setWalletConnected(false);
-        }
-    };
+            // Request account access
+            await window.ethereum.request({ method: 'eth_requestAccounts' });
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            const signer = await provider.getSigner();
 
-    const handleAccountsChanged = (accounts) => {
-        if (accounts.length === 0) {
-            // User disconnected their wallet
-            setWalletConnected(false);
-            setWalletAddress(null);
-        } else {
-            // User changed accounts
-            setWalletAddress(accounts[0]);
-            setWalletConnected(true);
-        }
-    };
+            // Create contract instance
+            const contract = new ethers.Contract(
+                electionContract.address,
+                electionContract.abi,
+                signer
+            );
 
-    const connectWallet = async () => {
-        try {
-            setIsVoting(true);
-            setError(null);
+            setCurrentStep(1);
 
-            // Request account access if needed
-            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-            const connectedAddress = accounts[0];
+            // Send vote transaction
+            const tx = await contract.vote(electionId, candidate.id);
+            setTxHash(tx.hash);
 
-            setWalletAddress(connectedAddress);
-            setWalletConnected(true);
+            // Wait for transaction confirmation
+            await tx.wait();
 
-            return connectedAddress;
-        } catch (err) {
-            console.error('Error connecting wallet:', err);
-            setError(err.message || 'Failed to connect wallet. Please try again.');
-            return null;
-        } finally {
-            setIsVoting(false);
-        }
-    };
+            // Store transaction in user's vote history
+            try {
+                const voteData = {
+                    userId: user.id,
+                    electionId: electionId,
+                    candidateId: candidate.id,
+                    transactionHash: tx.hash,
+                    timestamp: new Date().toISOString(),
+                };
 
-    const castVote = async () => {
-        if (!ballot || !candidateId) {
-            setError('Missing ballot or candidate information');
-            return;
-        }
+                const response = await fetch('/api/votes', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${user.token}`,
+                    },
+                    body: JSON.stringify(voteData),
+                });
 
-        try {
-            setIsVoting(true);
-            setError(null);
-            setTransactionStatus(null);
-
-            // Ensure wallet is connected
-            if (!walletConnected) {
-                const connected = await connectWallet();
-                if (!connected) {
-                    throw new Error('Please connect your wallet to vote');
+                if (!response.ok) {
+                    throw new Error('Failed to record vote in history');
                 }
+            } catch (err) {
+                console.error('Error storing vote history:', err);
+                // Don't throw here as the vote was successful on the blockchain
             }
 
-            // Prepare vote data
-            const voteData = {
-                ballotId: ballot.id,
-                candidateId: candidateId,
-                voterAddress: walletAddress
-            };
+            setCurrentStep(2);
+            message.success('Vote successfully recorded!');
 
-            // Convert vote data to a message that can be signed
-            const message = JSON.stringify(voteData);
+            // Close modal and redirect after 3 seconds
+            setTimeout(() => {
+                onClose();
+                navigate('/my-votes');
+            }, 3000);
 
-            // Open the modal before requesting signature
-            setIsModalVisible(true);
-            setTransactionStatus({
-                status: 'pending',
-                message: 'Please sign the transaction in MetaMask to cast your vote...'
-            });
-
-            // Request signature from MetaMask
-            const signature = await window.ethereum.request({
-                method: 'personal_sign',
-                params: [message, walletAddress],
-            });
-
-            // Now send the vote to the backend with the signature
-            const response = await votingAPI.castVote({
-                ...voteData,
-                signature
-            });
-
-            // Handle successful response
-            setTransactionStatus({
-                status: 'success',
-                message: 'Your vote has been successfully recorded on the blockchain!',
-                transactionHash: response.data.transactionHash
-            });
-
-            // Call the success callback if provided
-            if (onSuccess) {
-                onSuccess(response.data);
-            }
         } catch (err) {
-            console.error('Error casting vote:', err);
-            const errorMessage = err.message || 'Failed to cast vote. Please try again.';
-
-            setError(errorMessage);
-            setTransactionStatus({
-                status: 'error',
-                message: errorMessage
-            });
-
-            // Call the error callback if provided
-            if (onError) {
-                onError(err);
-            }
+            console.error('Voting error:', err);
+            setError(err.message || 'Failed to submit vote. Please try again.');
         } finally {
-            setIsVoting(false);
+            setLoading(false);
         }
     };
-
-    const handleModalClose = () => {
-        setIsModalVisible(false);
-
-        // If transaction was successful, call onSuccess callback
-        if (transactionStatus && transactionStatus.status === 'success' && onSuccess) {
-            onSuccess({
-                transactionHash: transactionStatus.transactionHash
-            });
-        }
-    };
-
-    // If MetaMask is not installed, show a warning
-    if (!metamaskInstalled) {
-        return (
-            <Alert
-                message="MetaMask Required"
-                description={
-                    <>
-                        <p>To cast your vote on the blockchain, you need to install the MetaMask browser extension.</p>
-                        <a
-                            href="https://metamask.io/download/"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
-                            Download MetaMask
-                        </a>
-                    </>
-                }
-                type="warning"
-                showIcon
-            />
-        );
-    }
 
     return (
-        <>
-            <Button
-                type="primary"
-                size="large"
-                onClick={castVote}
-                loading={isVoting}
-                style={{ width: '100%' }}
-                disabled={!ballot || !candidateId}
-            >
-                Cast Your Vote
-            </Button>
+        <Modal
+            title="Vote Confirmation"
+            open={visible}
+            onCancel={onClose}
+            footer={null}
+            width={600}
+        >
+            <Steps current={currentStep} items={steps} style={{ marginBottom: '24px' }} />
 
-            {error && (
-                <Alert
-                    message="Error"
-                    description={error}
-                    type="error"
-                    showIcon
-                    style={{ marginTop: '16px' }}
-                />
-            )}
-
-            <Modal
-                title="Blockchain Transaction"
-                open={isModalVisible}
-                onOk={handleModalClose}
-                onCancel={handleModalClose}
-                footer={[
-                    <Button key="close" type="primary" onClick={handleModalClose}>
-                        Close
-                    </Button>
-                ]}
-            >
-                {transactionStatus && (
-                    <div style={{ textAlign: 'center' }}>
-                        {transactionStatus.status === 'pending' ? (
-                            <div>
-                                <Spin size="large" />
-                                <Paragraph style={{ marginTop: '16px' }}>
-                                    {transactionStatus.message}
-                                </Paragraph>
-                            </div>
-                        ) : transactionStatus.status === 'success' ? (
-                            <div>
-                                <CheckCircleOutlined style={{ fontSize: '48px', color: '#52c41a' }} />
-                                <Title level={4} style={{ marginTop: '16px' }}>Vote Successfully Cast!</Title>
-                                <Paragraph>
-                                    {transactionStatus.message}
-                                </Paragraph>
-                                {transactionStatus.transactionHash && (
-                                    <div style={{ marginTop: '16px', background: '#f8f8f8', padding: '12px', borderRadius: '4px' }}>
-                                        <Text strong>Transaction Hash:</Text>
-                                        <br />
-                                        <Text copyable={{ text: transactionStatus.transactionHash }}>
-                                            {transactionStatus.transactionHash.substring(0, 20)}...
-                                        </Text>
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <div>
-                                <WarningOutlined style={{ fontSize: '48px', color: '#ff4d4f' }} />
-                                <Title level={4} style={{ marginTop: '16px' }}>Transaction Failed</Title>
-                                <Paragraph>
-                                    {transactionStatus.message}
-                                </Paragraph>
-                            </div>
-                        )}
-                    </div>
+            <div style={{ marginBottom: '24px' }}>
+                {currentStep === 0 && (
+                    <Alert
+                        message="Confirm Your Vote"
+                        description={
+                            <>
+                                <p>You are about to vote for:</p>
+                                <p><strong>{candidate.name}</strong></p>
+                                <p>This action cannot be undone. Please confirm to proceed.</p>
+                            </>
+                        }
+                        type="info"
+                        showIcon
+                    />
                 )}
-            </Modal>
-        </>
+
+                {currentStep === 1 && (
+                    <Alert
+                        message="Transaction in Progress"
+                        description="Please sign the transaction in MetaMask to complete your vote."
+                        type="warning"
+                        showIcon
+                    />
+                )}
+
+                {currentStep === 2 && (
+                    <Alert
+                        message="Vote Recorded Successfully!"
+                        description={
+                            <>
+                                <p>Your vote has been successfully recorded on the blockchain.</p>
+                                {txHash && (
+                                    <p>
+                                        Transaction Hash: <br />
+                                        <small style={{ wordBreak: 'break-all' }}>{txHash}</small>
+                                    </p>
+                                )}
+                                <p>Redirecting to your vote history...</p>
+                            </>
+                        }
+                        type="success"
+                        showIcon
+                    />
+                )}
+
+                {error && (
+                    <Alert
+                        message="Error"
+                        description={error}
+                        type="error"
+                        showIcon
+                        style={{ marginTop: '16px' }}
+                    />
+                )}
+            </div>
+
+            <div style={{ textAlign: 'right' }}>
+                {currentStep === 0 && (
+                    <>
+                        <Button onClick={onClose} style={{ marginRight: 8 }}>
+                            Cancel
+                        </Button>
+                        <Button
+                            type="primary"
+                            onClick={handleVote}
+                            loading={loading}
+                        >
+                            Confirm Vote
+                        </Button>
+                    </>
+                )}
+            </div>
+        </Modal>
     );
 };
 
