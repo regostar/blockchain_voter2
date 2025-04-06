@@ -28,6 +28,10 @@ const SimpleVoteForm = () => {
     const [contract, setContract] = useState(null);
     const [provider, setProvider] = useState(null);
     const [networkError, setNetworkError] = useState(false);
+    const [voteCounts, setVoteCounts] = useState({});
+    const [ballotId, setBallotId] = useState('1');
+    const [hasVoted, setHasVoted] = useState(false);
+    const [transactionHash, setTransactionHash] = useState(null);
 
     const candidates = [
         { id: '1', name: 'Candidate 1' },
@@ -108,6 +112,7 @@ const SimpleVoteForm = () => {
             setProvider(provider);
             
             const signer = await provider.getSigner();
+            console.log('Signer address:', await signer.getAddress());
             
             const votingContract = new Contract(
                 CONTRACT_ADDRESS,
@@ -115,6 +120,7 @@ const SimpleVoteForm = () => {
                 signer
             );
             
+            console.log('Contract initialized:', votingContract);
             setContract(votingContract);
             return votingContract;
         } catch (error) {
@@ -189,12 +195,18 @@ const SimpleVoteForm = () => {
             return;
         }
 
+        if (hasVoted) {
+            message.error('You have already voted in this ballot');
+            return;
+        }
+
         try {
             setLoading(true);
             
             // Get the current block number for the ballot ID
             const currentBlock = await provider.getBlockNumber();
             const ballotId = currentBlock.toString();
+            console.log('Using ballot ID:', ballotId);
             
             // Generate voter token from the account address
             const voterToken = generateVoterToken(account);
@@ -232,12 +244,50 @@ const SimpleVoteForm = () => {
             const voteTx = await contract.castVote(ballotId, selectedCandidate, voterToken, {
                 gasLimit: 200000
             });
+            
+            // Print transaction hash to console first
+            console.log('Transaction Hash:', voteTx.hash);
+            setTransactionHash(voteTx.hash);
+            
+            // Show immediate success message
+            message.success({
+                content: (
+                    <div>
+                        <p>Vote submitted successfully!</p>
+                        <p>Transaction Hash: {voteTx.hash}</p>
+                        <p>Waiting for confirmation...</p>
+                    </div>
+                ),
+                duration: 0
+            });
+            
             console.log('Vote transaction:', voteTx);
             const receipt = await voteTx.wait();
             console.log('Vote receipt:', receipt);
             
-            message.success('Vote successfully recorded on the blockchain!');
-            console.log('Transaction hash:', voteTx.hash);
+            // Update vote counts after transaction is confirmed
+            const counts = {};
+            for (const candidate of candidates) {
+                console.log('Fetching votes for candidate:', candidate.id);
+                const count = await contract.candidateVotes(ballotId, candidate.id);
+                console.log('Vote count:', count.toString());
+                counts[candidate.id] = count.toString();
+            }
+            setVoteCounts(counts);
+            
+            // Mark as voted and show final success message
+            setHasVoted(true);
+            message.success({
+                content: (
+                    <div>
+                        <p>Voting completed!</p>
+                        <p>Transaction Hash: {voteTx.hash}</p>
+                        <p>Your vote has been recorded on the blockchain.</p>
+                    </div>
+                ),
+                duration: 0
+            });
+            
             console.log('Block number:', receipt.blockNumber);
         } catch (error) {
             console.error('Error:', error);
@@ -311,31 +361,54 @@ const SimpleVoteForm = () => {
                         />
                     )}
                     
-                    <div style={{ marginBottom: 20 }}>
-                        <Text>Select a Candidate:</Text>
-                        <Select
-                            style={{ width: '100%', marginTop: 8 }}
-                            value={selectedCandidate}
-                            onChange={setSelectedCandidate}
-                            placeholder="Choose a candidate"
-                        >
-                            {candidates.map(candidate => (
-                                <Option key={candidate.id} value={candidate.id}>
-                                    {candidate.name}
-                                </Option>
-                            ))}
-                        </Select>
-                    </div>
+                    {hasVoted ? (
+                        <Alert
+                            message="Voting Completed"
+                            description={
+                                <div>
+                                    <p>You have successfully cast your vote!</p>
+                                    <p>Transaction Hash: {transactionHash}</p>
+                                    <p>Thank you for participating in the election.</p>
+                                </div>
+                            }
+                            type="success"
+                            showIcon
+                            style={{ marginBottom: 20 }}
+                        />
+                    ) : (
+                        <>
+                            <div style={{ marginBottom: 20 }}>
+                                <Text>Select a Candidate:</Text>
+                                <Select
+                                    style={{ width: '100%', marginTop: 8 }}
+                                    value={selectedCandidate}
+                                    onChange={setSelectedCandidate}
+                                    placeholder="Choose a candidate"
+                                >
+                                    {candidates.map(candidate => (
+                                        <Option key={candidate.id} value={candidate.id}>
+                                            {candidate.name}
+                                            {voteCounts[candidate.id] && (
+                                                <span className="ml-2 text-sm text-gray-500">
+                                                    (Votes: {voteCounts[candidate.id]})
+                                                </span>
+                                            )}
+                                        </Option>
+                                    ))}
+                                </Select>
+                            </div>
 
-                    <Button
-                        type="primary"
-                        onClick={handleVote}
-                        loading={loading}
-                        disabled={networkError}
-                        style={{ width: '100%' }}
-                    >
-                        Cast Vote
-                    </Button>
+                            <Button
+                                type="primary"
+                                onClick={handleVote}
+                                loading={loading}
+                                disabled={networkError || hasVoted}
+                                style={{ width: '100%' }}
+                            >
+                                Cast Vote
+                            </Button>
+                        </>
+                    )}
                 </>
             )}
         </Card>
