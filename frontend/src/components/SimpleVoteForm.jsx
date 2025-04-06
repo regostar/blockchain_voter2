@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Card, Select, message, Typography, Alert } from 'antd';
-import { BrowserProvider, Contract, id, keccak256, toUtf8Bytes } from 'ethers';
+import { BrowserProvider, Contract, parseEther } from 'ethers';
 import VotingSystemArtifact from '../contracts/VotingSystem.json';
 
 const { Option } = Select;
@@ -18,26 +18,34 @@ const GANACHE_NETWORK_PARAMS = {
     rpcUrls: ['http://localhost:8545'],
 };
 
-const CONTRACT_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+// Hardcoded candidate addresses from Ganache
+const candidates = [
+    {
+        id: '1',
+        name: 'Candidate 1',
+        address: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'
+    },
+    {
+        id: '2',
+        name: 'Candidate 2',
+        address: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC'
+    },
+    {
+        id: '3',
+        name: 'Candidate 3',
+        address: '0x90F79bf6EB2c4f870365E785982E1f101E93b906'
+    }
+];
 
 const SimpleVoteForm = () => {
     const [loading, setLoading] = useState(false);
     const [selectedCandidate, setSelectedCandidate] = useState('');
     const [account, setAccount] = useState(null);
     const [isConnected, setIsConnected] = useState(false);
-    const [contract, setContract] = useState(null);
     const [provider, setProvider] = useState(null);
     const [networkError, setNetworkError] = useState(false);
-    const [voteCounts, setVoteCounts] = useState({});
-    const [ballotId, setBallotId] = useState('1');
     const [hasVoted, setHasVoted] = useState(false);
     const [transactionHash, setTransactionHash] = useState(null);
-
-    const candidates = [
-        { id: '1', name: 'Candidate 1' },
-        { id: '2', name: 'Candidate 2' },
-        { id: '3', name: 'Candidate 3' }
-    ];
 
     const switchToGanacheNetwork = async () => {
         try {
@@ -48,7 +56,6 @@ const SimpleVoteForm = () => {
             setNetworkError(false);
             return true;
         } catch (switchError) {
-            // This error code indicates that the chain has not been added to MetaMask.
             if (switchError.code === 4902) {
                 try {
                     await window.ethereum.request({
@@ -87,7 +94,7 @@ const SimpleVoteForm = () => {
 
     useEffect(() => {
         checkIfWalletIsConnected();
-        
+
         if (window.ethereum) {
             window.ethereum.on('chainChanged', () => {
                 checkNetwork();
@@ -101,35 +108,6 @@ const SimpleVoteForm = () => {
         };
     }, []);
 
-    const initializeContract = async () => {
-        try {
-            if (!await checkNetwork()) {
-                const switched = await switchToGanacheNetwork();
-                if (!switched) return null;
-            }
-
-            const provider = new BrowserProvider(window.ethereum);
-            setProvider(provider);
-            
-            const signer = await provider.getSigner();
-            console.log('Signer address:', await signer.getAddress());
-            
-            const votingContract = new Contract(
-                CONTRACT_ADDRESS,
-                VotingSystemArtifact.abi,
-                signer
-            );
-            
-            console.log('Contract initialized:', votingContract);
-            setContract(votingContract);
-            return votingContract;
-        } catch (error) {
-            console.error('Error initializing contract:', error);
-            message.error('Failed to initialize contract');
-            return null;
-        }
-    };
-
     const checkIfWalletIsConnected = async () => {
         try {
             if (!window.ethereum) {
@@ -141,7 +119,8 @@ const SimpleVoteForm = () => {
             if (accounts.length > 0) {
                 setAccount(accounts[0]);
                 setIsConnected(true);
-                await initializeContract();
+                const provider = new BrowserProvider(window.ethereum);
+                setProvider(provider);
             }
         } catch (error) {
             console.error('Error checking wallet connection:', error);
@@ -159,7 +138,8 @@ const SimpleVoteForm = () => {
             const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
             setAccount(accounts[0]);
             setIsConnected(true);
-            await initializeContract();
+            const provider = new BrowserProvider(window.ethereum);
+            setProvider(provider);
             message.success('Wallet connected successfully!');
         } catch (error) {
             console.error('Error connecting wallet:', error);
@@ -167,11 +147,6 @@ const SimpleVoteForm = () => {
         } finally {
             setLoading(false);
         }
-    };
-
-    const generateVoterToken = (address) => {
-        // Create a hash of the address to use as the voter token
-        return keccak256(toUtf8Bytes(address.toLowerCase()));
     };
 
     const handleVote = async () => {
@@ -185,110 +160,66 @@ const SimpleVoteForm = () => {
             return;
         }
 
-        if (!contract) {
-            message.error('Contract not initialized');
-            return;
-        }
-
         if (networkError) {
             message.error('Please switch to Ganache network');
             return;
         }
 
         if (hasVoted) {
-            message.error('You have already voted in this ballot');
+            message.error('You have already voted');
             return;
         }
 
         try {
             setLoading(true);
-            
-            // Get the current block number for the ballot ID
-            const currentBlock = await provider.getBlockNumber();
-            const ballotId = currentBlock.toString();
-            console.log('Using ballot ID:', ballotId);
-            
-            // Generate voter token from the account address
-            const voterToken = generateVoterToken(account);
-            console.log('Voter token:', voterToken);
-            
-            try {
-                console.log('Checking if voter is registered...');
-                const isRegistered = await contract.registeredVoterTokens(voterToken);
-                console.log('Is registered:', isRegistered);
-                
-                if (!isRegistered) {
-                    console.log('Registering voter token...');
-                    const registerTx = await contract.registerVoterToken(voterToken, {
-                        gasLimit: 100000
-                    });
-                    console.log('Register transaction:', registerTx);
-                    const registerReceipt = await registerTx.wait();
-                    console.log('Register receipt:', registerReceipt);
-                    console.log('Voter token registered');
-                } else {
-                    console.log('Voter already registered');
-                }
-            } catch (registerError) {
-                console.error('Error in registration:', registerError);
-                // Continue with voting even if registration check fails
+
+            // Find the selected candidate's address
+            const candidate = candidates.find(c => c.id === selectedCandidate);
+            if (!candidate) {
+                throw new Error('Selected candidate not found');
             }
-            
-            // Cast the vote
-            console.log('Casting vote with params:', {
-                ballotId,
-                selectedCandidate,
-                voterToken
+
+            // Get signer for the transaction
+            const signer = await provider.getSigner();
+
+            // Create transaction to send 0.01 ETH to candidate
+            const tx = await signer.sendTransaction({
+                to: candidate.address,
+                value: parseEther("0.01"), // Sending 0.01 ETH as a vote
             });
-            
-            const voteTx = await contract.castVote(ballotId, selectedCandidate, voterToken, {
-                gasLimit: 200000
-            });
-            
-            // Print transaction hash to console first
-            console.log('Transaction Hash:', voteTx.hash);
-            setTransactionHash(voteTx.hash);
-            
+
+            console.log('Transaction Hash:', tx.hash);
+            setTransactionHash(tx.hash);
+
             // Show immediate success message
             message.success({
                 content: (
                     <div>
                         <p>Vote submitted successfully!</p>
-                        <p>Transaction Hash: {voteTx.hash}</p>
+                        <p>Transaction Hash: {tx.hash}</p>
                         <p>Waiting for confirmation...</p>
                     </div>
                 ),
                 duration: 0
             });
-            
-            console.log('Vote transaction:', voteTx);
-            const receipt = await voteTx.wait();
-            console.log('Vote receipt:', receipt);
-            
-            // Update vote counts after transaction is confirmed
-            const counts = {};
-            for (const candidate of candidates) {
-                console.log('Fetching votes for candidate:', candidate.id);
-                const count = await contract.candidateVotes(ballotId, candidate.id);
-                console.log('Vote count:', count.toString());
-                counts[candidate.id] = count.toString();
-            }
-            setVoteCounts(counts);
-            
+
+            // Wait for transaction confirmation
+            const receipt = await tx.wait();
+            console.log('Transaction confirmed:', receipt);
+
             // Mark as voted and show final success message
             setHasVoted(true);
             message.success({
                 content: (
                     <div>
-                        <p>Voting completed!</p>
-                        <p>Transaction Hash: {voteTx.hash}</p>
+                        <p>Vote confirmed!</p>
+                        <p>Transaction Hash: {tx.hash}</p>
                         <p>Your vote has been recorded on the blockchain.</p>
                     </div>
                 ),
                 duration: 0
             });
-            
-            console.log('Block number:', receipt.blockNumber);
+
         } catch (error) {
             console.error('Error:', error);
             message.error(error.message || 'Failed to cast vote');
@@ -336,14 +267,13 @@ const SimpleVoteForm = () => {
                         description={
                             <div>
                                 <p>Connected Address: {account}</p>
-                                <p>Contract Address: {CONTRACT_ADDRESS}</p>
                             </div>
                         }
                         type="success"
                         showIcon
                         style={{ marginBottom: 20 }}
                     />
-                    
+
                     {networkError && (
                         <Alert
                             message="Wrong Network"
@@ -360,7 +290,7 @@ const SimpleVoteForm = () => {
                             style={{ marginBottom: 20 }}
                         />
                     )}
-                    
+
                     {hasVoted ? (
                         <Alert
                             message="Voting Completed"
@@ -387,12 +317,7 @@ const SimpleVoteForm = () => {
                                 >
                                     {candidates.map(candidate => (
                                         <Option key={candidate.id} value={candidate.id}>
-                                            {candidate.name}
-                                            {voteCounts[candidate.id] && (
-                                                <span className="ml-2 text-sm text-gray-500">
-                                                    (Votes: {voteCounts[candidate.id]})
-                                                </span>
-                                            )}
+                                            {candidate.name} ({candidate.address.substring(0, 6)}...{candidate.address.substring(candidate.address.length - 4)})
                                         </Option>
                                     ))}
                                 </Select>
