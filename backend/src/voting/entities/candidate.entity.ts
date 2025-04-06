@@ -4,8 +4,10 @@ import {
   PrimaryGeneratedColumn,
   ManyToOne,
   JoinColumn,
+  OneToMany,
 } from 'typeorm';
 import { Ballot } from './ballot.entity';
+import { Vote } from './vote.entity';
 
 @Entity('candidates')
 export class Candidate {
@@ -29,4 +31,7 @@ export class Candidate {
 
   @Column({ name: 'ballot_id' })
   ballotId: string;
+
+  @OneToMany(() => Vote, vote => vote.candidate)
+  votes: Vote[];
 } 

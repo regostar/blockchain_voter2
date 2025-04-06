@@ -1,40 +1,24 @@
-import {
-  Entity,
-  Column,
-  PrimaryGeneratedColumn,
-  CreateDateColumn,
-  ManyToOne,
-  JoinColumn,
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Ballot } from './ballot.entity';
 import { Candidate } from './candidate.entity';
 
-@Entity('votes')
+@Entity()
 export class Vote {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => User)
-  @JoinColumn({ name: 'user_id' })
-  user: User;
+  @Column()
+  encryptedVote: string;
 
-  @Column({ name: 'user_id' })
-  userId: string;
-
-  @ManyToOne(() => Ballot)
-  @JoinColumn({ name: 'ballot_id' })
+  @ManyToOne(() => Ballot, ballot => ballot.votes)
   ballot: Ballot;
 
-  @Column({ name: 'ballot_id' })
-  ballotId: string;
-
-  @ManyToOne(() => Candidate)
-  @JoinColumn({ name: 'candidate_id' })
+  @ManyToOne(() => Candidate, candidate => candidate.votes)
   candidate: Candidate;
 
-  @Column({ name: 'candidate_id' })
-  candidateId: string;
+  @ManyToOne(() => User, user => user.votes)
+  user: User;
 
   @Column({ nullable: true })
   transactionHash: string;

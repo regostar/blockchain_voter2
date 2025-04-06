@@ -14,28 +14,33 @@ A secure, transparent, and decentralized voting system built on blockchain techn
 ## Tech Stack
 
 ### Backend
+
 - **Framework**: Node.js with NestJS
 - **Database**: PostgreSQL for user data and application state
 - **Authentication**: JWT/OAuth for session management
 - **Blockchain Interaction**: ethers.js for Ethereum interaction
 
 ### Frontend
+
 - **Framework**: React with React Router
 - **Styling**: Bootstrap for responsive UI
 - **State Management**: React Context API
 - **Blockchain Interaction**: ethers.js for web3 integration
 
 ### Blockchain
+
 - **Network**: Ethereum/Polygon (configurable)
 - **Smart Contracts**: Solidity voting contract
 
 ### DevOps
+
 - **Containerization**: Docker and Docker Compose
 - **Local Blockchain**: Ganache for development
 
 ## Getting Started
 
 ### Prerequisites
+
 - Docker and Docker Compose
 - Node.js (for local development)
 - Git
@@ -43,12 +48,14 @@ A secure, transparent, and decentralized voting system built on blockchain techn
 ### Installation
 
 1. Clone the repository:
+
    ```
    git clone <repository-url>
    cd blockchain-voting-system
    ```
 
 2. Start the application using Docker Compose:
+
    ```
    docker-compose up -d
    ```
@@ -61,15 +68,19 @@ A secure, transparent, and decentralized voting system built on blockchain techn
 ### Running Without Docker (Simple Steps)
 
 1. **Set up PostgreSQL database**:
+
    - Install PostgreSQL: https://www.postgresql.org/download/
    - Create a database: `CREATE DATABASE voting_system;`
 
 2. **Set up local blockchain**:
+
    - Install Ganache: `npm install -g ganache`
    - Start Ganache: `npx ganache --deterministic --host=0.0.0.0`
 
 3. **Configure environment**:
+
    - Create `.env` file in backend directory:
+
    ```
    DB_HOST=localhost
    DB_PORT=5432
@@ -81,6 +92,7 @@ A secure, transparent, and decentralized voting system built on blockchain techn
    ```
 
 4. **Run backend**:
+
    ```
    cd backend
    npm install
@@ -88,6 +100,7 @@ A secure, transparent, and decentralized voting system built on blockchain techn
    ```
 
 5. **Run frontend**:
+
    ```
    cd frontend
    npm install
@@ -101,22 +114,26 @@ A secure, transparent, and decentralized voting system built on blockchain techn
 ### Local Development
 
 1. Start the dependencies (PostgreSQL and Ganache):
+
    ```
    docker-compose up -d postgres ganache
    ```
 
 2. Install backend dependencies:
+
    ```
    cd backend
    npm install
    ```
 
 3. Start the backend in development mode:
+
    ```
    npm run start:dev
    ```
 
 4. In another terminal, install frontend dependencies:
+
    ```
    cd frontend
    npm install
@@ -160,10 +177,12 @@ The API documentation is available at `/api/docs` when the backend is running.
 ### Key Endpoints
 
 - **Authentication**:
+
   - `POST /api/auth/login`: Log in with username and password
   - `POST /api/auth/verify-token`: Verify a JWT token
 
 - **Users**:
+
   - `POST /api/users`: Register a new user
   - `POST /api/users/:id/voter-token`: Generate a voter token for a user
 
@@ -196,4 +215,4 @@ The `VotingSystem.sol` contract includes functionality for:
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request. 
+Contributions are welcome! Please feel free to submit a Pull Request.
