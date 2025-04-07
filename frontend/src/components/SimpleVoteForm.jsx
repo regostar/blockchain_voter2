@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Card, Select, message, Typography, Alert } from 'antd';
-import { BrowserProvider, Contract, parseEther } from 'ethers';
+import { Button, Card, Select, message, Typography, Alert, Form, Input } from 'antd';
+import { BrowserProvider, Contract, parseEther, Wallet } from 'ethers';
 import VotingSystemArtifact from '../contracts/VotingSystem.json';
 
 const { Option } = Select;
@@ -46,6 +46,8 @@ const SimpleVoteForm = () => {
     const [networkError, setNetworkError] = useState(false);
     const [hasVoted, setHasVoted] = useState(false);
     const [transactionHash, setTransactionHash] = useState(null);
+    const [registrationForm] = Form.useForm();
+    const [isRegistering, setIsRegistering] = useState(false);
 
     const switchToGanacheNetwork = async () => {
         try {
@@ -228,9 +230,112 @@ const SimpleVoteForm = () => {
         }
     };
 
+    // Function to create a new wallet and fund it
+    const createNewWallet = async () => {
+        try {
+            setLoading(true);
+
+            // Create a new random wallet
+            const newWallet = Wallet.createRandom();
+            console.log('New wallet created:', {
+                address: newWallet.address,
+                privateKey: newWallet.privateKey
+            });
+
+            // Connect to Ganache
+            const provider = new BrowserProvider('http://127.0.0.1:8545');
+
+            // Get the first Ganache account as funder
+            const signer = await provider.getSigner(0);
+
+            // Send 1 ETH to the new wallet
+            const tx = await signer.sendTransaction({
+                to: newWallet.address,
+                value: parseEther("1.0")
+            });
+
+            await tx.wait();
+            console.log('Funded new wallet with 1 ETH');
+
+            // Add the new account to MetaMask
+            try {
+                await window.ethereum.request({
+                    method: 'wallet_importRawKey',
+                    params: [
+                        newWallet.privateKey.slice(2), // Remove '0x' prefix
+                        'password123' // Optional password
+                    ],
+                });
+
+                message.success('New wallet imported to MetaMask!');
+            } catch (importError) {
+                console.error('Error importing to MetaMask:', importError);
+                // If automatic import fails, show manual instructions
+                message.info({
+                    content: (
+                        <div>
+                            <p>Please add this account to MetaMask manually:</p>
+                            <p>Private Key: {newWallet.privateKey}</p>
+                        </div>
+                    ),
+                    duration: 0
+                });
+            }
+
+            return newWallet;
+        } catch (error) {
+            console.error('Error creating new wallet:', error);
+            message.error('Failed to create new wallet');
+            throw error;
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRegister = async (values) => {
+        try {
+            setIsRegistering(true);
+
+            // Create new wallet for the user
+            const userWallet = await createNewWallet();
+
+            // Store user details (in a real app, this would go to a backend)
+            const userDetails = {
+                name: values.name,
+                email: values.email,
+                walletAddress: userWallet.address
+            };
+
+            console.log('User registered:', userDetails);
+
+            // Clear form
+            registrationForm.resetFields();
+
+            message.success({
+                content: (
+                    <div>
+                        <p>Registration successful!</p>
+                        <p>Your wallet address: {userWallet.address}</p>
+                        <p>Please save your private key securely!</p>
+                    </div>
+                ),
+                duration: 0
+            });
+
+            // Connect the new wallet
+            await connectWallet();
+
+        } catch (error) {
+            console.error('Registration error:', error);
+            message.error('Failed to register');
+        } finally {
+            setIsRegistering(false);
+        }
+    };
+
     return (
         <Card style={{ maxWidth: 600, margin: '20px auto', padding: '20px' }}>
-            <Title level={3}>Cast Your Vote</Title>
+            <Title level={3}>Blockchain Voting System</Title>
 
             {!window.ethereum ? (
                 <Alert
@@ -252,14 +357,55 @@ const SimpleVoteForm = () => {
                     style={{ marginBottom: 20 }}
                 />
             ) : !isConnected ? (
-                <Button
-                    type="primary"
-                    onClick={connectWallet}
-                    loading={loading}
-                    style={{ width: '100%', marginBottom: 20 }}
-                >
-                    Connect Wallet
-                </Button>
+                <>
+                    <Form
+                        form={registrationForm}
+                        onFinish={handleRegister}
+                        layout="vertical"
+                        style={{ marginBottom: 20 }}
+                    >
+                        <Form.Item
+                            name="name"
+                            label="Name"
+                            rules={[{ required: true, message: 'Please enter your name' }]}
+                        >
+                            <Input />
+                        </Form.Item>
+
+                        <Form.Item
+                            name="email"
+                            label="Email"
+                            rules={[
+                                { required: true, message: 'Please enter your email' },
+                                { type: 'email', message: 'Please enter a valid email' }
+                            ]}
+                        >
+                            <Input />
+                        </Form.Item>
+
+                        <Button
+                            type="primary"
+                            htmlType="submit"
+                            loading={isRegistering}
+                            style={{ width: '100%', marginBottom: 10 }}
+                        >
+                            Register & Create Wallet
+                        </Button>
+                    </Form>
+
+                    <Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 20 }}>
+                        - OR -
+                    </Text>
+
+                    <Button
+                        type="default"
+                        onClick={connectWallet}
+                        loading={loading}
+                        style={{ width: '100%' }}
+                    >
+                        Connect Existing Wallet
+                    </Button>
+                </>
             ) : (
                 <>
                     <Alert
